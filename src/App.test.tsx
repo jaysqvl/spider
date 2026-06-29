@@ -164,6 +164,15 @@ describe("App", () => {
     expect(await screen.findByText(/installed Spider desktop app/)).toBeInTheDocument();
   });
 
+  it("shows the copyright notice in the about dialog", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "About" }));
+
+    expect(screen.getByText("Copyright 2026 Jay Esquivel.")).toBeInTheDocument();
+  });
+
   it("shows the whole selected run as a drag preview", async () => {
     localStorage.setItem("spider.activeGame", JSON.stringify(gameWithRun()));
     render(<App />);

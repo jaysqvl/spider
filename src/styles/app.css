@@ -719,6 +719,11 @@ button {
   margin: 0;
 }
 
+.about-panel {
+  display: grid;
+  gap: 10px;
+}
+
 .reset-panel {
   display: grid;
   gap: 12px;

@@ -941,6 +941,7 @@ export default function App() {
               Spider {appVersion} is an independent Spider Solitaire app for desktop with local-only saves,
               settings, and stats.
             </p>
+            <p>Copyright 2026 Jay Esquivel.</p>
           </div>
         </Modal>
       ) : null}
