@@ -53,6 +53,15 @@ describe("App", () => {
     expect(parseFloat(document.documentElement.style.getPropertyValue("--tableau-min-width"))).toBeCloseTo(956.8);
   });
 
+  it("surfaces update checks from settings", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    expect(screen.getByRole("button", { name: "Check for Updates" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "About" })).not.toBeInTheDocument();
+  });
+
   it("shows the whole selected run as a drag preview", async () => {
     localStorage.setItem("spider.activeGame", JSON.stringify(gameWithRun()));
     render(<App />);

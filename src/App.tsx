@@ -787,6 +787,14 @@ export default function App() {
           </div>
 
           <div className="modal-actions">
+            <button type="button" onClick={() => void handleCheckUpdates()}>
+              Check for Updates
+            </button>
+            {updateInfo ? (
+              <button type="button" onClick={() => void handleInstallUpdate()}>
+                Install {updateInfo.version}
+              </button>
+            ) : null}
             <button type="button" className="danger-button" onClick={() => setModal("reset")}>
               Reset Local Data
             </button>
@@ -807,16 +815,6 @@ export default function App() {
               Spider {appVersion} is an original Spider Solitaire app for desktop. It is not affiliated with
               Microsoft.
             </p>
-            <div className="modal-actions">
-              <button type="button" onClick={() => void handleCheckUpdates()}>
-                Check for Updates
-              </button>
-              {updateInfo ? (
-                <button type="button" onClick={() => void handleInstallUpdate()}>
-                  Install {updateInfo.version}
-                </button>
-              ) : null}
-            </div>
           </div>
         </Modal>
       ) : null}
