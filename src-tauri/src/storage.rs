@@ -228,11 +228,15 @@ pub fn record_completed_game(
     update_rollup(&tx, "difficulty", &record.difficulty, &record)?;
     tx.commit().map_err(to_string)?;
 
-    load_stats(state)
+    load_stats_from_connection(&conn)
 }
 
 pub fn load_stats(state: &StorageState) -> Result<StatsPayload, String> {
     let conn = lock_connection(state)?;
+    load_stats_from_connection(&conn)
+}
+
+fn load_stats_from_connection(conn: &Connection) -> Result<StatsPayload, String> {
     let mut statement = conn
         .prepare(
             "SELECT scope, difficulty, games_played, games_won, games_abandoned,
@@ -571,6 +575,7 @@ fn to_string(error: impl ToString) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::{sync::mpsc, time::Duration};
 
     #[test]
     fn legacy_settings_default_game_scale() {
@@ -651,5 +656,60 @@ mod tests {
         );
 
         assert_eq!(settings.game_scale_mode, "auto");
+    }
+
+    #[test]
+    fn record_completed_game_returns_updated_stats_without_relocking_storage() {
+        let (sender, receiver) = mpsc::channel();
+
+        std::thread::spawn(move || {
+            let state = in_memory_state();
+            let stats = record_completed_game(
+                &state,
+                CompletedGameRecord {
+                    difficulty: "one-suit".to_string(),
+                    seed: "deadlock-regression".to_string(),
+                    outcome: "abandoned".to_string(),
+                    score: 497,
+                    moves: 3,
+                    elapsed_ms: 12_000,
+                    started_at: "2026-01-01T00:00:00.000Z".to_string(),
+                    completed_at: "2026-01-01T00:00:12.000Z".to_string(),
+                },
+            );
+
+            sender.send(stats).expect("test receiver should be open");
+        });
+
+        let stats = receiver
+            .recv_timeout(Duration::from_secs(2))
+            .expect("recording a completed game should not deadlock")
+            .expect("completed game should record");
+
+        let all_rollup = stats
+            .rollups
+            .iter()
+            .find(|rollup| rollup.scope == "all")
+            .expect("all rollup should be returned");
+        let difficulty_rollup = stats
+            .rollups
+            .iter()
+            .find(|rollup| rollup.scope == "difficulty" && rollup.difficulty == "one-suit")
+            .expect("difficulty rollup should be returned");
+
+        assert_eq!(all_rollup.games_played, 1);
+        assert_eq!(all_rollup.games_abandoned, 1);
+        assert_eq!(difficulty_rollup.games_played, 1);
+        assert_eq!(difficulty_rollup.total_moves, 3);
+    }
+
+    fn in_memory_state() -> StorageState {
+        let conn = Connection::open_in_memory().expect("in-memory database should open");
+        run_migrations(&conn).expect("test database should migrate");
+
+        StorageState {
+            conn: Mutex::new(conn),
+            recovery_message: Mutex::new(None),
+        }
     }
 }
