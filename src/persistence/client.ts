@@ -16,6 +16,8 @@ import {
 const SETTINGS_KEY = "spider.settings";
 const ACTIVE_GAME_KEY = "spider.activeGame";
 const STATS_KEY = "spider.stats";
+const DESKTOP_UPDATE_UNAVAILABLE_MESSAGE =
+  "Updates are only available in the installed Spider desktop app. This browser preview cannot check or install releases.";
 
 declare global {
   interface Window {
@@ -24,91 +26,141 @@ declare global {
 }
 
 export async function loadAppState(): Promise<LoadAppState> {
-  if (isTauriRuntime()) {
-    return invoke<LoadAppState>("load_app_state");
-  }
-
-  return {
+  return invokeOrLocal("load_app_state", undefined, () => ({
     settings: loadLocalSettings(),
     activeGame: reviveGameState(readJson(ACTIVE_GAME_KEY)),
     stats: loadLocalStats(),
     recoveryMessage: null,
     appVersion: "0.1.1-dev"
-  };
+  }));
 }
 
 export async function saveActiveGame(game: GameState): Promise<void> {
-  if (isTauriRuntime()) {
-    await invoke("save_active_game", { game: serializeGameState(game) });
-    return;
-  }
+  const serialized = serializeGameState(game);
 
-  writeJson(ACTIVE_GAME_KEY, serializeGameState(game));
+  await invokeOrLocal("save_active_game", { game: serialized }, () => {
+    writeJson(ACTIVE_GAME_KEY, serialized);
+  });
 }
 
 export async function clearActiveGame(): Promise<void> {
-  if (isTauriRuntime()) {
-    await invoke("clear_active_game");
-    return;
-  }
-
-  localStorage.removeItem(ACTIVE_GAME_KEY);
+  await invokeOrLocal("clear_active_game", undefined, () => {
+    localStorage.removeItem(ACTIVE_GAME_KEY);
+  });
 }
 
 export async function saveSettings(settings: Settings): Promise<void> {
-  if (isTauriRuntime()) {
-    await invoke("save_settings", { settings });
-    return;
-  }
-
-  writeJson(SETTINGS_KEY, settings);
+  await invokeOrLocal("save_settings", { settings }, () => {
+    writeJson(SETTINGS_KEY, settings);
+  });
 }
 
 export async function recordCompletedGame(record: CompletedGameInput): Promise<StatsPayload> {
-  if (isTauriRuntime()) {
-    return invoke<StatsPayload>("record_completed_game", { record });
-  }
-
-  const stats = applyCompletedGame(loadLocalStats(), record);
-  writeJson(STATS_KEY, stats);
-  return stats;
+  return invokeOrLocal("record_completed_game", { record }, () => {
+    const stats = applyCompletedGame(loadLocalStats(), record);
+    writeJson(STATS_KEY, stats);
+    return stats;
+  });
 }
 
 export async function loadStats(): Promise<StatsPayload> {
-  if (isTauriRuntime()) {
-    return invoke<StatsPayload>("load_stats");
-  }
-
-  return loadLocalStats();
+  return invokeOrLocal("load_stats", undefined, loadLocalStats);
 }
 
 export async function resetLocalData(): Promise<void> {
-  if (isTauriRuntime()) {
-    await invoke("reset_local_data");
-    return;
-  }
-
-  localStorage.removeItem(SETTINGS_KEY);
-  localStorage.removeItem(ACTIVE_GAME_KEY);
-  localStorage.removeItem(STATS_KEY);
+  await invokeOrLocal("reset_local_data", undefined, () => {
+    localStorage.removeItem(SETTINGS_KEY);
+    localStorage.removeItem(ACTIVE_GAME_KEY);
+    localStorage.removeItem(STATS_KEY);
+  });
 }
 
 export async function checkForUpdates(): Promise<UpdateInfo | null> {
-  if (isTauriRuntime()) {
-    return invoke<UpdateInfo | null>("check_for_updates");
+  if (!isTauriRuntime()) {
+    throw new Error(DESKTOP_UPDATE_UNAVAILABLE_MESSAGE);
   }
 
-  return null;
+  try {
+    return await invoke<UpdateInfo | null>("check_for_updates");
+  } catch (error) {
+    if (isTauriCommandUnavailable(error)) {
+      throw new Error(DESKTOP_UPDATE_UNAVAILABLE_MESSAGE, { cause: error });
+    }
+
+    throw toError(error, "Update check failed.");
+  }
 }
 
 export async function installUpdate(): Promise<void> {
-  if (isTauriRuntime()) {
+  if (!isTauriRuntime()) {
+    throw new Error(DESKTOP_UPDATE_UNAVAILABLE_MESSAGE);
+  }
+
+  try {
     await invoke("install_update");
+  } catch (error) {
+    if (isTauriCommandUnavailable(error)) {
+      throw new Error(DESKTOP_UPDATE_UNAVAILABLE_MESSAGE, { cause: error });
+    }
+
+    throw toError(error, "Update installation failed.");
   }
 }
 
 function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && Boolean(window.__TAURI_INTERNALS__);
+}
+
+async function invokeOrLocal<T>(
+  command: string,
+  args: Record<string, unknown> | undefined,
+  localFallback: () => T | Promise<T>
+): Promise<T> {
+  if (!isTauriRuntime()) {
+    return localFallback();
+  }
+
+  try {
+    return await invoke<T>(command, args);
+  } catch (error) {
+    if (isTauriCommandUnavailable(error)) {
+      return localFallback();
+    }
+
+    throw toError(error, `${command} failed.`);
+  }
+}
+
+function isTauriCommandUnavailable(error: unknown): boolean {
+  const message = stringifyError(error).toLowerCase();
+
+  return (
+    message.includes("unknown command") ||
+    /command .*not found/.test(message) ||
+    message.includes("__tauri_ipc__") ||
+    message.includes("ipc channel")
+  );
+}
+
+function toError(error: unknown, fallbackMessage: string): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+
+  const message = stringifyError(error);
+  return new Error(message || fallbackMessage, { cause: error });
+}
+
+function stringifyError(error: unknown): string {
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "";
 }
 
 function loadLocalSettings(): Settings {

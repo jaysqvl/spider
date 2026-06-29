@@ -18,6 +18,7 @@ This repository is a portfolio-quality desktop game project. Keep it easy to rev
 
 - `src/game` is the pure TypeScript engine. It must not import React, browser APIs, Tauri APIs, filesystem APIs, or persistence clients.
 - `src/persistence` owns the frontend persistence boundary and talks to Tauri commands. Browser-only fallbacks are acceptable for development preview, but SQLite through Tauri is the product path.
+- Browser previews may run inside another Tauri host. If Spider commands are unavailable, persistence may fall back to browser storage, but update checks and installs must explain that they only work in the installed Spider desktop app.
 - `src/components` contains reusable UI components. Keep them focused and presentational unless local interaction state makes the component clearer.
 - `src/styles` contains global styling and design tokens.
 - `src-tauri` owns OS integration, SQLite storage, migrations, updater checks, packaging, and native commands.

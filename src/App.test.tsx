@@ -62,6 +62,16 @@ describe("App", () => {
     expect(screen.queryByRole("dialog", { name: "About" })).not.toBeInTheDocument();
   });
 
+  it("explains that browser previews cannot install desktop updates", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("button", { name: "Check for Updates" }));
+
+    expect(await screen.findByText(/installed Spider desktop app/)).toBeInTheDocument();
+  });
+
   it("shows the whole selected run as a drag preview", async () => {
     localStorage.setItem("spider.activeGame", JSON.stringify(gameWithRun()));
     render(<App />);

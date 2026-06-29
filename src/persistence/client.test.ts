@@ -1,6 +1,8 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { invoke } from "@tauri-apps/api/core";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { newGame } from "../game/engine";
 import {
+  checkForUpdates,
   clearActiveGame,
   loadAppState,
   recordCompletedGame,
@@ -9,9 +11,17 @@ import {
   saveSettings
 } from "./client";
 
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn()
+}));
+
+const invokeMock = vi.mocked(invoke);
+
 describe("browser persistence fallback", () => {
   beforeEach(() => {
     localStorage.clear();
+    invokeMock.mockReset();
+    Reflect.deleteProperty(window, "__TAURI_INTERNALS__");
   });
 
   it("saves and loads active games", async () => {
@@ -41,6 +51,36 @@ describe("browser persistence fallback", () => {
       gameScale: 85,
       reducedMotion: true
     });
+  });
+
+  it("falls back to browser storage when a host Tauri shell lacks Spider commands", async () => {
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      configurable: true,
+      value: {}
+    });
+    invokeMock.mockRejectedValue("command save_settings not found");
+
+    await saveSettings({
+      theme: "dark",
+      difficulty: "two-suit",
+      cardBack: "midnight",
+      gameScale: 90,
+      reducedMotion: true
+    });
+
+    const loaded = await loadAppState();
+    expect(loaded.settings.theme).toBe("dark");
+    expect(loaded.settings.difficulty).toBe("two-suit");
+  });
+
+  it("explains update checks are desktop-only when Spider update commands are unavailable", async () => {
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      configurable: true,
+      value: {}
+    });
+    invokeMock.mockRejectedValue("command check_for_updates not found");
+
+    await expect(checkForUpdates()).rejects.toThrow("installed Spider desktop app");
   });
 
   it("normalizes missing, old oversized, and out-of-range game scale settings", async () => {
