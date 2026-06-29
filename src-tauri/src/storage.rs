@@ -269,7 +269,8 @@ pub fn reset_local_data(state: &StorageState) -> Result<(), String> {
     let mut conn = lock_connection(state)?;
     let tx = conn.transaction().map_err(to_string)?;
 
-    tx.execute("DELETE FROM active_game", []).map_err(to_string)?;
+    tx.execute("DELETE FROM active_game", [])
+        .map_err(to_string)?;
     tx.execute("DELETE FROM settings", []).map_err(to_string)?;
     tx.execute("DELETE FROM completed_games", [])
         .map_err(to_string)?;

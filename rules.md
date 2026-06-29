@@ -56,6 +56,7 @@ This repository is a portfolio-quality desktop game project. Keep it easy to rev
 - UI tests should cover workflows that can regress: new game, moving cards, stock dealing, undo/redo, hints, settings, stats, and reset confirmation.
 - Persistence tests should cover save/load, migrations, corrupted database recovery, settings, stats, completed games, and reset behavior.
 - Do not mark a feature complete unless its core behavior can be verified by `npm test`, `npm run typecheck`, and `npm run lint` where the local toolchain permits it.
+- Native Rust/Tauri changes must satisfy `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` and the Rust smoke checks in CI.
 
 ## Commit And Review Rules
 

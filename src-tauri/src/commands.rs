@@ -38,7 +38,10 @@ pub fn load_settings(state: State<'_, StorageState>) -> Result<SettingsPayload, 
 }
 
 #[tauri::command]
-pub fn save_settings(state: State<'_, StorageState>, settings: SettingsPayload) -> Result<(), String> {
+pub fn save_settings(
+    state: State<'_, StorageState>,
+    settings: SettingsPayload,
+) -> Result<(), String> {
     storage::save_settings(&state, settings)
 }
 
