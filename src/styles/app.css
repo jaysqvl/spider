@@ -97,10 +97,10 @@ button {
 
 .app-toolbar {
   display: grid;
-  grid-template-columns: minmax(190px, auto) 1fr auto;
-  gap: 16px;
+  grid-template-columns: minmax(150px, auto) 1fr auto;
+  gap: 10px;
   align-items: center;
-  padding: 14px 18px;
+  padding: 8px 12px;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
@@ -108,40 +108,40 @@ button {
 .brand-lockup {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 9px;
   min-width: 0;
 }
 
 .brand-mark {
   display: grid;
-  width: 42px;
-  height: 42px;
+  width: 34px;
+  height: 34px;
   place-items: center;
   border-radius: 50%;
   background: var(--accent);
   color: white;
-  font-size: 1.45rem;
+  font-size: 1.18rem;
   box-shadow: inset 0 -8px 16px rgba(0, 0, 0, 0.18);
 }
 
 .brand-lockup h1 {
   margin: 0;
-  font-size: 1.45rem;
+  font-size: 1.18rem;
   line-height: 1.1;
   letter-spacing: 0;
 }
 
 .brand-lockup p {
-  margin: 2px 0 0;
+  margin: 0;
   color: var(--muted);
-  font-size: 0.86rem;
+  font-size: 0.76rem;
 }
 
 .toolbar-actions,
 .utility-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
@@ -152,9 +152,14 @@ button {
 .difficulty-picker,
 .settings-grid label {
   display: grid;
-  gap: 5px;
+  gap: 4px;
   font-size: 0.78rem;
   color: var(--muted);
+}
+
+.difficulty-picker {
+  align-items: center;
+  grid-template-columns: auto minmax(98px, 1fr);
 }
 
 .difficulty-picker select,
@@ -188,7 +193,8 @@ button {
 }
 
 .icon-button--compact {
-  width: 38px;
+  width: 36px;
+  min-height: 36px;
   padding: 8px;
 }
 
