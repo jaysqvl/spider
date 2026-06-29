@@ -31,7 +31,7 @@ export async function loadAppState(): Promise<LoadAppState> {
     activeGame: reviveGameState(readJson(ACTIVE_GAME_KEY)),
     stats: loadLocalStats(),
     recoveryMessage: null,
-    appVersion: "0.1.1-dev"
+    appVersion: "0.1.2-dev"
   }));
 }
 
