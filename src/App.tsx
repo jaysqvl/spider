@@ -86,7 +86,7 @@ export default function App() {
   const [dragPreview, setDragPreview] = useState<DragPreviewState | null>(null);
   const [dealAnimationOrders, setDealAnimationOrders] = useState<Record<string, number>>({});
   const [message, setMessage] = useState("Ready.");
-  const [appVersion, setAppVersion] = useState("0.1.0");
+  const [appVersion, setAppVersion] = useState("0.1.1");
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const gameRef = useRef(game);
