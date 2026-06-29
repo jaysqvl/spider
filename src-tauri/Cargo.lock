@@ -3423,7 +3423,7 @@ dependencies = [
 
 [[package]]
 name = "spider"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "rusqlite",
  "serde",
