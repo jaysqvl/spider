@@ -199,7 +199,8 @@ describe("App", () => {
     await user.click(await screen.findByRole("button", { name: "Settings" }));
     await user.click(screen.getByRole("button", { name: "Check for Updates" }));
 
-    expect(await screen.findByText(/installed Spider desktop app/)).toBeInTheDocument();
+    expect(await screen.findByText("Update check unavailable")).toBeInTheDocument();
+    expect(screen.getByLabelText("Notifications")).toHaveTextContent(/installed Spider desktop app/);
   });
 
   it("keeps restart playable when local persistence writes fail", async () => {

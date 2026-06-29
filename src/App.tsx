@@ -61,8 +61,18 @@ const TOP_ROW_HEIGHT_RATIO = 0.83;
 const TABLEAU_FIT_SAFETY_PX = 2;
 const TOOLBAR_OPEN_DELAY_MS = 60;
 const TOOLBAR_CLOSE_DELAY_MS = 2400;
+const TOAST_VISIBLE_MS = 5200;
+const UPDATE_TOAST_ID = "update-status";
 
 type ModalName = "settings" | "stats" | "about" | "reset" | null;
+type ToastTone = "info" | "success" | "error";
+
+interface ToastMessage {
+  id: string;
+  title: string;
+  body: string;
+  tone: ToastTone;
+}
 
 interface DragPreviewState {
   move: Omit<CardMove, "toColumn">;
@@ -87,6 +97,7 @@ export default function App() {
   const [dragPreview, setDragPreview] = useState<DragPreviewState | null>(null);
   const [dealAnimationOrders, setDealAnimationOrders] = useState<Record<string, number>>({});
   const [message, setMessage] = useState("Ready.");
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [appVersion, setAppVersion] = useState(packageJson.version);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isToolbarOpen, setIsToolbarOpen] = useState(false);
@@ -98,6 +109,7 @@ export default function App() {
   const dealAnimationTimerRef = useRef<number | null>(null);
   const toolbarOpenTimerRef = useRef<number | null>(null);
   const toolbarCloseTimerRef = useRef<number | null>(null);
+  const toastTimersRef = useRef(new Map<string, number>());
   const playSurfaceRef = useRef<HTMLElement | null>(null);
   const recordedCompletionKeys = useRef(new Set<string>());
   const settingsRef = useRef(settings);
@@ -244,6 +256,7 @@ export default function App() {
   useEffect(() => {
     return () => {
       clearToolbarTimers();
+      clearToastTimers();
     };
   }, []);
 
@@ -672,6 +685,41 @@ export default function App() {
     }, TOOLBAR_CLOSE_DELAY_MS);
   }
 
+  function clearToastTimers(): void {
+    for (const timer of toastTimersRef.current.values()) {
+      window.clearTimeout(timer);
+    }
+
+    toastTimersRef.current.clear();
+  }
+
+  function dismissToast(id: string): void {
+    const timer = toastTimersRef.current.get(id);
+
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      toastTimersRef.current.delete(id);
+    }
+
+    setToasts((current) => current.filter((toast) => toast.id !== id));
+  }
+
+  function showToast(toast: ToastMessage, options: { persist?: boolean } = {}): void {
+    const previousTimer = toastTimersRef.current.get(toast.id);
+
+    if (previousTimer !== undefined) {
+      window.clearTimeout(previousTimer);
+      toastTimersRef.current.delete(toast.id);
+    }
+
+    setToasts((current) => [toast, ...current.filter((item) => item.id !== toast.id)].slice(0, 3));
+
+    if (!options.persist) {
+      const timer = window.setTimeout(() => dismissToast(toast.id), TOAST_VISIBLE_MS);
+      toastTimersRef.current.set(toast.id, timer);
+    }
+  }
+
   async function handleResetConfirmed(): Promise<void> {
     await resetLocalData();
     const nextSettings = DEFAULT_SETTINGS;
@@ -686,21 +734,71 @@ export default function App() {
   }
 
   async function handleCheckUpdates(): Promise<void> {
+    showToast(
+      {
+        id: UPDATE_TOAST_ID,
+        title: "Checking for updates",
+        body: "Looking for a signed Spider release from GitHub Releases.",
+        tone: "info"
+      },
+      { persist: true }
+    );
+
     try {
       const update = await checkForUpdates();
       setUpdateInfo(update);
       setMessage(update ? `Update ${update.version} is available.` : "No update available.");
+      showToast({
+        id: UPDATE_TOAST_ID,
+        title: update ? "Update available" : "Spider is up to date",
+        body: update
+          ? `Version ${update.version} is ready to install.`
+          : `You are running the latest available release, ${appVersion}.`,
+        tone: update ? "success" : "info"
+      });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Update check failed.");
+      const errorMessage = error instanceof Error ? error.message : "Update check failed.";
+      setMessage(errorMessage);
+      showToast({
+        id: UPDATE_TOAST_ID,
+        title: errorMessage.includes("installed Spider desktop app") ? "Update check unavailable" : "Update check failed",
+        body: errorMessage,
+        tone: "error"
+      });
     }
   }
 
   async function handleInstallUpdate(): Promise<void> {
+    showToast(
+      {
+        id: UPDATE_TOAST_ID,
+        title: "Installing update",
+        body: updateInfo
+          ? `Installing Spider ${updateInfo.version}. The app will restart when the update is applied.`
+          : "Installing the available Spider update. The app will restart when the update is applied.",
+        tone: "info"
+      },
+      { persist: true }
+    );
+
     try {
       await installUpdate();
       setMessage("Update installed.");
+      showToast({
+        id: UPDATE_TOAST_ID,
+        title: "Update installed",
+        body: "Restarting Spider to finish the update.",
+        tone: "success"
+      });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Update installation failed.");
+      const errorMessage = error instanceof Error ? error.message : "Update installation failed.";
+      setMessage(errorMessage);
+      showToast({
+        id: UPDATE_TOAST_ID,
+        title: "Update installation failed",
+        body: errorMessage,
+        tone: "error"
+      });
     }
   }
 
@@ -857,6 +955,17 @@ export default function App() {
       <div className="sr-only" role="status" aria-live="polite">
         {message}
       </div>
+
+      {toasts.length > 0 ? (
+        <div className="toast-region" aria-label="Notifications" aria-live="polite">
+          {toasts.map((toast) => (
+            <div key={toast.id} className={`toast toast--${toast.tone}`} role={toast.tone === "error" ? "alert" : "status"}>
+              <strong>{toast.title}</strong>
+              <span>{toast.body}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {modal === "settings" ? (
         <Modal title="Settings" onClose={() => setModal(null)}>
