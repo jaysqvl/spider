@@ -1,8 +1,6 @@
 # Spider
 
-Spider is an original cross-platform desktop Spider Solitaire app built with Tauri 2, React, TypeScript, Vite, and SQLite.
-
-This project is not affiliated with Microsoft and does not use Microsoft branding, sounds, layouts, or card art.
+Spider is an independent cross-platform desktop Spider Solitaire app built with Tauri 2, React, TypeScript, Vite, and SQLite.
 
 ## Current Scope
 
@@ -58,8 +56,6 @@ src-tauri/
   ci.yml
   release.yml
 ```
-
-See `rules.md` for engineering rules and `PLANNING.md` for product requirements.
 
 ## Local Data
 

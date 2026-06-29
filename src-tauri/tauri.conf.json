@@ -31,8 +31,8 @@
     "category": "CardGame",
     "copyright": "Copyright (c) 2026 Jay Esquivel Jr",
     "licenseFile": "../LICENSE",
-    "shortDescription": "Original Spider Solitaire desktop app.",
-    "longDescription": "Spider is an original cross-platform desktop Spider Solitaire app with local-only saves, settings, and statistics.",
+    "shortDescription": "Independent Spider Solitaire desktop app.",
+    "longDescription": "Spider is an independent cross-platform desktop Spider Solitaire app with local-only saves, settings, and statistics.",
     "createUpdaterArtifacts": false,
     "windows": {
       "nsis": {

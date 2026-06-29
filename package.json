@@ -1,7 +1,7 @@
 {
   "name": "spider",
   "version": "0.1.2",
-  "description": "Original cross-platform Spider Solitaire desktop app.",
+  "description": "Independent cross-platform Spider Solitaire desktop app.",
   "private": true,
   "type": "module",
   "license": "MIT",

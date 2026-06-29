@@ -822,8 +822,8 @@ export default function App() {
         <Modal title="About" onClose={() => setModal(null)}>
           <div className="about-panel">
             <p>
-              Spider {appVersion} is an original Spider Solitaire app for desktop. It is not affiliated with
-              Microsoft.
+              Spider {appVersion} is an independent Spider Solitaire app for desktop with local-only saves,
+              settings, and stats.
             </p>
           </div>
         </Modal>
