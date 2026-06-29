@@ -69,12 +69,13 @@ describe("App", () => {
     await waitFor(() => expect(document.documentElement.dataset.gameScaleMode).toBe("manual"));
   });
 
-  it("uses responsive tableau spacing when auto-fitting cards", () => {
+  it("caps auto-fit card width to the visible viewport", () => {
     const surface = document.createElement("section");
     Object.defineProperties(surface, {
-      clientWidth: { value: 520, configurable: true },
+      clientWidth: { value: 900, configurable: true },
       clientHeight: { value: 360, configurable: true }
     });
+    Object.defineProperty(window, "innerWidth", { value: 520, configurable: true });
     surface.style.paddingLeft = "4px";
     surface.style.paddingRight = "4px";
     surface.style.paddingTop = "6px";
@@ -87,6 +88,36 @@ describe("App", () => {
 
     expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(49);
     surface.remove();
+  });
+
+  it("opens the toolbar intentionally and closes it after a delay", async () => {
+    const { container } = render(<App />);
+
+    await screen.findByLabelText("Tableau");
+    vi.useFakeTimers();
+    const hotspot = container.querySelector<HTMLElement>(".toolbar-hotspot");
+    const toolbar = container.querySelector<HTMLElement>(".app-toolbar");
+
+    expect(hotspot).not.toBeNull();
+    expect(toolbar).not.toBeNull();
+    expect(toolbar).not.toHaveClass("is-open");
+
+    fireEvent.pointerEnter(hotspot!);
+    fireEvent.pointerLeave(hotspot!);
+    act(() => vi.advanceTimersByTime(120));
+    expect(toolbar).not.toHaveClass("is-open");
+
+    fireEvent.pointerEnter(hotspot!);
+    act(() => vi.advanceTimersByTime(120));
+    expect(toolbar).toHaveClass("is-open");
+
+    fireEvent.pointerLeave(toolbar!);
+    act(() => vi.advanceTimersByTime(2399));
+    expect(toolbar).toHaveClass("is-open");
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(toolbar).not.toHaveClass("is-open");
+    vi.useRealTimers();
   });
 
   it("renders scalable rank and suit labels on face-up cards", async () => {

@@ -22,12 +22,16 @@
   --play-surface-block-padding: clamp(10px, 1.4vw, 18px);
   --tableau-gap: clamp(6px, 0.95vw, 12px);
   --tableau-available-width: calc(100vw - (var(--play-surface-inline-padding) * 2));
+  --tableau-viewport-fit-width: calc(
+    (100vw - (var(--play-surface-inline-padding) * 2) - (var(--tableau-gap) * 9)) / 10
+  );
   --card-fit-width: calc(
     (var(--tableau-available-width) - (var(--tableau-gap) * 9)) / 10
   );
+  --card-auto-min-width: min(var(--card-readable-min-width), var(--card-fit-width), var(--tableau-viewport-fit-width));
   --card-auto-width: clamp(
-    var(--card-readable-min-width),
-    min(var(--card-preferred-width), var(--card-fit-width)),
+    var(--card-auto-min-width),
+    min(var(--card-preferred-width), var(--card-fit-width), var(--tableau-viewport-fit-width)),
     var(--card-preferred-width)
   );
   --card-width: var(--card-auto-width);
@@ -98,6 +102,9 @@ button {
   min-height: 100vh;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 .toolbar-hotspot {
@@ -119,27 +126,34 @@ button {
   align-items: center;
   height: 0;
   min-height: 0;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
   overflow: hidden;
   padding: 0 12px;
   background: var(--surface);
   border-bottom: 0 solid transparent;
   box-shadow: none;
+  transform: translateY(-4px);
   transition:
-    height 180ms ease 2400ms,
-    padding 180ms ease 2400ms,
-    border-color 180ms ease 2400ms,
-    box-shadow 180ms ease 2400ms;
+    height 160ms ease,
+    padding 160ms ease,
+    opacity 120ms ease,
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
-.toolbar-hotspot:hover + .app-toolbar,
-.app-toolbar:hover,
-.app-toolbar:focus-within {
+.app-toolbar.is-open {
   z-index: 42;
   height: 44px;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
   padding-block: 5px;
   border-bottom: 1px solid var(--line);
   box-shadow: 0 10px 24px rgba(26, 34, 30, 0.12);
-  transition-delay: 0ms;
+  transform: translateY(0);
 }
 
 .brand-lockup {
@@ -307,6 +321,8 @@ button {
   gap: clamp(10px, 1.35vw, 18px);
   min-height: 0;
   padding: var(--play-surface-block-padding) var(--play-surface-inline-padding);
+  width: 100%;
+  max-width: 100vw;
   overflow: hidden;
   background:
     radial-gradient(circle at 20% 18%, rgba(255, 255, 255, 0.12), transparent 24%),
@@ -398,7 +414,10 @@ button {
   gap: var(--tableau-gap);
   align-items: start;
   justify-content: space-between;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
+  overflow: hidden;
 }
 
 .tableau-column {

@@ -57,6 +57,8 @@ const TABLEAU_COLUMN_COUNT = 10;
 const CARD_HEIGHT_RATIO = 1.38;
 const CARD_STACK_VISIBLE_RATIO = 0.32;
 const TOP_ROW_HEIGHT_RATIO = 0.83;
+const TOOLBAR_OPEN_DELAY_MS = 120;
+const TOOLBAR_CLOSE_DELAY_MS = 2400;
 
 type ModalName = "settings" | "stats" | "about" | "reset" | null;
 
@@ -85,12 +87,15 @@ export default function App() {
   const [message, setMessage] = useState("Ready.");
   const [appVersion, setAppVersion] = useState("0.1.2");
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [isToolbarOpen, setIsToolbarOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const gameRef = useRef(game);
   const dragPreviewRef = useRef<DragPreviewState | null>(null);
   const lastPointerDownAtRef = useRef(0);
   const suppressNextClickRef = useRef(false);
   const dealAnimationTimerRef = useRef<number | null>(null);
+  const toolbarOpenTimerRef = useRef<number | null>(null);
+  const toolbarCloseTimerRef = useRef<number | null>(null);
   const playSurfaceRef = useRef<HTMLElement | null>(null);
   const recordedCompletionKeys = useRef(new Set<string>());
 
@@ -231,6 +236,12 @@ export default function App() {
 
   useEffect(() => {
     return () => clearDealAnimation(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearToolbarTimers();
+    };
   }, []);
 
   useEffect(() => {
@@ -592,6 +603,55 @@ export default function App() {
     );
   }
 
+  function clearToolbarTimers(): void {
+    if (toolbarOpenTimerRef.current !== null) {
+      window.clearTimeout(toolbarOpenTimerRef.current);
+      toolbarOpenTimerRef.current = null;
+    }
+
+    if (toolbarCloseTimerRef.current !== null) {
+      window.clearTimeout(toolbarCloseTimerRef.current);
+      toolbarCloseTimerRef.current = null;
+    }
+  }
+
+  function queueToolbarOpen(): void {
+    if (toolbarCloseTimerRef.current !== null) {
+      window.clearTimeout(toolbarCloseTimerRef.current);
+      toolbarCloseTimerRef.current = null;
+    }
+
+    if (toolbarOpenTimerRef.current !== null || isToolbarOpen) {
+      return;
+    }
+
+    toolbarOpenTimerRef.current = window.setTimeout(() => {
+      toolbarOpenTimerRef.current = null;
+      setIsToolbarOpen(true);
+    }, TOOLBAR_OPEN_DELAY_MS);
+  }
+
+  function openToolbarNow(): void {
+    clearToolbarTimers();
+    setIsToolbarOpen(true);
+  }
+
+  function scheduleToolbarClose(): void {
+    if (toolbarOpenTimerRef.current !== null) {
+      window.clearTimeout(toolbarOpenTimerRef.current);
+      toolbarOpenTimerRef.current = null;
+    }
+
+    if (toolbarCloseTimerRef.current !== null) {
+      window.clearTimeout(toolbarCloseTimerRef.current);
+    }
+
+    toolbarCloseTimerRef.current = window.setTimeout(() => {
+      toolbarCloseTimerRef.current = null;
+      setIsToolbarOpen(false);
+    }, TOOLBAR_CLOSE_DELAY_MS);
+  }
+
   async function handleResetConfirmed(): Promise<void> {
     await resetLocalData();
     const nextSettings = DEFAULT_SETTINGS;
@@ -626,11 +686,19 @@ export default function App() {
 
   return (
     <main className="app-shell">
-      <div className="toolbar-hotspot" aria-hidden="true" />
+      <div
+        className="toolbar-hotspot"
+        aria-hidden="true"
+        onPointerEnter={queueToolbarOpen}
+        onPointerLeave={scheduleToolbarClose}
+      />
       <Toolbar
+        isOpen={isToolbarOpen}
         game={game}
         selectedDifficulty={settings.difficulty}
         canInstallUpdate={Boolean(updateInfo)}
+        onOpen={openToolbarNow}
+        onClose={scheduleToolbarClose}
         onDifficultyChange={(difficulty) => {
           void handleDifficultyChange(difficulty);
         }}
@@ -926,7 +994,8 @@ export function applyAutoFitScale(surface: HTMLElement, settings: Settings, game
   const blockPadding = parsePixels(surfaceStyle.paddingTop) + parsePixels(surfaceStyle.paddingBottom);
   const rowGap = parsePixels(surfaceStyle.rowGap || surfaceStyle.gap);
   const columnGap = readRootPixels("--tableau-gap");
-  const availableWidth = surfaceWidth - inlinePadding;
+  const visibleSurfaceWidth = getVisibleInlineSize(surfaceWidth);
+  const availableWidth = visibleSurfaceWidth - inlinePadding;
   const availableHeight = surfaceHeight - blockPadding - rowGap;
   const horizontalFit =
     (availableWidth - columnGap * (TABLEAU_COLUMN_COUNT - 1)) / TABLEAU_COLUMN_COUNT;
@@ -936,6 +1005,15 @@ export function applyAutoFitScale(surface: HTMLElement, settings: Settings, game
   const fitWidth = Math.floor(Math.max(1, Math.min(horizontalFit, verticalFit)));
 
   root.style.setProperty("--card-fit-width", `${fitWidth}px`);
+}
+
+function getVisibleInlineSize(surfaceWidth: number): number {
+  const viewportWidth = window.visualViewport?.width;
+  const candidates = [surfaceWidth, viewportWidth, window.innerWidth, document.documentElement.clientWidth].filter(
+    (value): value is number => value !== undefined && Number.isFinite(value) && value > 0
+  );
+
+  return candidates.length > 0 ? Math.min(...candidates) : surfaceWidth;
 }
 
 function readRootPixels(property: string): number {

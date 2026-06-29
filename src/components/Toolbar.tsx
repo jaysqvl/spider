@@ -1,3 +1,4 @@
+import type { FocusEvent } from "react";
 import {
   BarChart3,
   CircleHelp,
@@ -14,9 +15,12 @@ import { DIFFICULTIES, type Difficulty, type GameState } from "../game/types";
 import { IconButton } from "./IconButton";
 
 interface ToolbarProps {
+  isOpen: boolean;
   game: GameState;
   selectedDifficulty: Difficulty;
   canInstallUpdate: boolean;
+  onOpen: () => void;
+  onClose: () => void;
   onDifficultyChange: (difficulty: Difficulty) => void;
   onNewGame: () => void;
   onRestart: () => void;
@@ -31,9 +35,12 @@ interface ToolbarProps {
 }
 
 export function Toolbar({
+  isOpen,
   game,
   selectedDifficulty,
   canInstallUpdate,
+  onOpen,
+  onClose,
   onDifficultyChange,
   onNewGame,
   onRestart,
@@ -46,8 +53,24 @@ export function Toolbar({
   onAbout,
   onInstallUpdate
 }: ToolbarProps) {
+  function handleBlur(event: FocusEvent<HTMLElement>): void {
+    const nextFocused = event.relatedTarget;
+
+    if (nextFocused instanceof Node && event.currentTarget.contains(nextFocused)) {
+      return;
+    }
+
+    onClose();
+  }
+
   return (
-    <header className="app-toolbar">
+    <header
+      className={["app-toolbar", isOpen ? "is-open" : ""].join(" ")}
+      onPointerEnter={onOpen}
+      onPointerLeave={onClose}
+      onFocus={onOpen}
+      onBlur={handleBlur}
+    >
       <div className="brand-lockup">
         <span className="brand-mark" aria-hidden="true">
           ♠
