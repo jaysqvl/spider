@@ -628,6 +628,7 @@ export default function App() {
 
   return (
     <main className="app-shell">
+      <div className="toolbar-hotspot" aria-hidden="true" />
       <Toolbar
         game={game}
         selectedDifficulty={settings.difficulty}

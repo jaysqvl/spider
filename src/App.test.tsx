@@ -34,6 +34,7 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Deal stock" })).toBeInTheDocument();
     expect(screen.getByLabelText("Tableau")).toBeInTheDocument();
     expect(container.querySelectorAll("[data-column-index]")).toHaveLength(10);
+    expect(container.querySelector(".toolbar-hotspot")).toBeInTheDocument();
     expect(screen.queryByText(/Column \d+/)).not.toBeInTheDocument();
     await waitFor(() => expect(document.documentElement.dataset.gameScale).toBe("100"));
     expect(document.documentElement.dataset.gameScaleMode).toBe("auto");
