@@ -27,12 +27,13 @@ describe("App", () => {
   });
 
   it("starts on the playable Spider game screen", async () => {
-    render(<App />);
+    const { container } = render(<App />);
 
     await waitFor(() => expect(screen.getByRole("heading", { name: "Spider" })).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Deal stock" })).toBeInTheDocument();
     expect(screen.getByLabelText("Tableau")).toBeInTheDocument();
-    expect(screen.getAllByText(/Column \d+/)).toHaveLength(10);
+    expect(container.querySelectorAll("[data-column-index]")).toHaveLength(10);
+    expect(screen.queryByText(/Column \d+/)).not.toBeInTheDocument();
   });
 
   it("updates settings through the in-app settings dialog", async () => {
@@ -90,6 +91,21 @@ describe("App", () => {
     const preview = await screen.findByTestId("drag-preview");
     expect(preview.querySelectorAll(".drag-preview__card")).toHaveLength(2);
     expect(preview).toHaveStyle("transform: translate3d(70px, 110px, 0)");
+  });
+
+  it("animates stock cards into each tableau column", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+
+    await screen.findByText("New game ready.");
+    await user.click(screen.getByRole("button", { name: "Deal stock" }));
+
+    await waitFor(() => expect(container.querySelectorAll(".tableau-card.is-dealt-card")).toHaveLength(10));
+    expect(
+      Array.from(container.querySelectorAll<HTMLElement>(".tableau-card.is-dealt-card")).map(
+        (card) => card.dataset.dealAnimationOrder
+      )
+    ).toEqual(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]);
   });
 });
 

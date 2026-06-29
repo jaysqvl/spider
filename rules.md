@@ -23,6 +23,8 @@ This repository is a portfolio-quality desktop game project. Keep it easy to rev
 - `src-tauri` owns OS integration, SQLite storage, migrations, updater checks, packaging, and native commands.
 - Display settings such as theme, card back, reduced motion, and game scale must remain persisted settings with UI coverage.
 - Game scale must flow through CSS variables and shared settings types; do not duplicate hardcoded card or tableau dimensions in feature code.
+- Tableau columns should stay visually quiet; do not render developer-style column numbers on the game board.
+- Deal animations are UI-only. They must not alter engine state, persistence payloads, or move legality.
 - Prefer small, named functions over hidden behavior in large event handlers.
 - Add abstractions only when they remove real duplication or clarify a boundary.
 

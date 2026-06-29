@@ -349,13 +349,6 @@ button {
   background: rgba(216, 248, 168, 0.08);
 }
 
-.tableau-column__label {
-  margin-bottom: 8px;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 0.72rem;
-  text-align: center;
-}
-
 .tableau-column__cards {
   display: flex;
   min-height: var(--card-height);
@@ -365,6 +358,12 @@ button {
 
 .tableau-card + .tableau-card {
   margin-top: var(--card-offset);
+}
+
+.tableau-card.is-dealt-card .card {
+  animation: stock-deal-card 620ms cubic-bezier(0.19, 0.9, 0.22, 1) both;
+  animation-delay: var(--deal-delay, 0ms);
+  will-change: transform, opacity;
 }
 
 .card {
@@ -463,6 +462,24 @@ button {
 
 .drag-preview__card + .drag-preview__card {
   margin-top: var(--card-offset);
+}
+
+@keyframes stock-deal-card {
+  0% {
+    opacity: 0;
+    transform: translate3d(var(--deal-from-x, -220px), var(--deal-from-y, -130px), 0) scale(0.82)
+      rotate(-8deg);
+  }
+
+  72% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1.025) rotate(1deg);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1) rotate(0);
+  }
 }
 
 .win-banner {

@@ -1,4 +1,5 @@
 import {
+  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   useEffect,
@@ -56,6 +57,8 @@ const BASE_STOCK_DECK_WIDTH = 54;
 const BASE_STOCK_DECK_HEIGHT = 72;
 const BASE_STOCK_MIN_HEIGHT = 76;
 const BASE_FOUNDATION_MIN_HEIGHT = 62;
+const DEAL_ANIMATION_DURATION_MS = 620;
+const DEAL_ANIMATION_STAGGER_MS = 26;
 
 type ModalName = "settings" | "stats" | "about" | "reset" | null;
 
@@ -80,6 +83,7 @@ export default function App() {
   const [selectedMove, setSelectedMove] = useState<Omit<CardMove, "toColumn"> | null>(null);
   const [hintMove, setHintMove] = useState<CardMove | null>(null);
   const [dragPreview, setDragPreview] = useState<DragPreviewState | null>(null);
+  const [dealAnimationOrders, setDealAnimationOrders] = useState<Record<string, number>>({});
   const [message, setMessage] = useState("Ready.");
   const [appVersion, setAppVersion] = useState("0.1.0");
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -88,6 +92,7 @@ export default function App() {
   const dragPreviewRef = useRef<DragPreviewState | null>(null);
   const lastPointerDownAtRef = useRef(0);
   const suppressNextClickRef = useRef(false);
+  const dealAnimationTimerRef = useRef<number | null>(null);
   const recordedCompletionKeys = useRef(new Set<string>());
 
   useEffect(() => {
@@ -178,6 +183,10 @@ export default function App() {
 
     window.addEventListener("beforeunload", saveCurrentGame);
     return () => window.removeEventListener("beforeunload", saveCurrentGame);
+  }, []);
+
+  useEffect(() => {
+    return () => clearDealAnimation(false);
   }, []);
 
   useEffect(() => {
@@ -283,6 +292,7 @@ export default function App() {
   }
 
   function persistGame(next: GameState, previous = gameRef.current): void {
+    clearDealAnimation();
     setGameAndRef(next);
     setSelectedMove(null);
     setHintMove(null);
@@ -337,6 +347,7 @@ export default function App() {
     await recordAbandonIfNeeded();
     const next = newGame(settings.difficulty);
     persistGame(next);
+    scheduleDealAnimation(getInitialDealAnimationOrders(next.tableau));
     setMessage(`${DIFFICULTIES[next.difficulty].label} game started.`);
   }
 
@@ -344,6 +355,7 @@ export default function App() {
     await recordAbandonIfNeeded();
     const next = restartGame(gameRef.current);
     persistGame(next);
+    scheduleDealAnimation(getInitialDealAnimationOrders(next.tableau));
     setMessage("Game restarted.");
   }
 
@@ -366,7 +378,16 @@ export default function App() {
   }
 
   function handleDeal(): void {
-    applyOutcome(dealStock(gameRef.current), "Stock dealt.");
+    const outcome = dealStock(gameRef.current);
+
+    if (!outcome.ok) {
+      setMessage(outcome.reason);
+      return;
+    }
+
+    persistGame(outcome.state);
+    scheduleDealAnimation(getStockDealAnimationOrders(outcome.state.tableau));
+    setMessage(outcome.completedSequences > 0 ? "Sequence cleared." : "Stock dealt.");
   }
 
   function handleMove(move: CardMove): void {
@@ -500,6 +521,33 @@ export default function App() {
     setDragPreview(dragState);
   }
 
+  function clearDealAnimation(resetState = true): void {
+    if (dealAnimationTimerRef.current !== null) {
+      window.clearTimeout(dealAnimationTimerRef.current);
+      dealAnimationTimerRef.current = null;
+    }
+
+    if (resetState) {
+      setDealAnimationOrders({});
+    }
+  }
+
+  function scheduleDealAnimation(orders: Record<string, number>): void {
+    clearDealAnimation();
+
+    const orderValues = Object.values(orders);
+
+    if (orderValues.length === 0) {
+      return;
+    }
+
+    setDealAnimationOrders(orders);
+    dealAnimationTimerRef.current = window.setTimeout(
+      () => clearDealAnimation(),
+      DEAL_ANIMATION_DURATION_MS + Math.max(...orderValues) * DEAL_ANIMATION_STAGGER_MS + 120
+    );
+  }
+
   async function handleResetConfirmed(): Promise<void> {
     await resetLocalData();
     const nextSettings = DEFAULT_SETTINGS;
@@ -608,7 +656,6 @@ export default function App() {
                 ].join(" ")}
                 onClick={() => handleColumnClick(columnIndex)}
               >
-                <div className="tableau-column__label">Column {columnIndex + 1}</div>
                 <div className="tableau-column__cards">
                   {column.map((card, cardIndex) => {
                     const isSelected =
@@ -619,9 +666,23 @@ export default function App() {
                       Boolean(dragPreview?.hasMoved) &&
                       dragPreview?.move.fromColumn === columnIndex &&
                       cardIndex >= dragPreview.move.startIndex;
+                    const dealOrder = dealAnimationOrders[card.id];
+                    const dealAnimationStyle =
+                      dealOrder === undefined
+                        ? undefined
+                        : ({
+                            "--deal-delay": `${dealOrder * DEAL_ANIMATION_STAGGER_MS}ms`,
+                            "--deal-from-x": `${-42 - columnIndex * 74}px`,
+                            "--deal-from-y": `${-110 - Math.min(dealOrder, 8) * 4}px`
+                          } as CSSProperties);
 
                     return (
-                      <div key={card.id} className="tableau-card">
+                      <div
+                        key={card.id}
+                        className={["tableau-card", dealOrder === undefined ? "" : "is-dealt-card"].join(" ")}
+                        data-deal-animation-order={dealOrder}
+                        style={dealAnimationStyle}
+                      >
                         <CardView
                           card={card}
                           cardBack={settings.cardBack}
@@ -792,6 +853,36 @@ function applyGameScale(root: HTMLElement, gameScale: number): void {
   root.style.setProperty("--stock-deck-height", `${BASE_STOCK_DECK_HEIGHT * scale}px`);
   root.style.setProperty("--stock-min-height", `${BASE_STOCK_MIN_HEIGHT * scale}px`);
   root.style.setProperty("--foundation-min-height", `${BASE_FOUNDATION_MIN_HEIGHT * scale}px`);
+}
+
+function getStockDealAnimationOrders(tableau: Card[][]): Record<string, number> {
+  return Object.fromEntries(
+    tableau.flatMap((column, columnIndex) => {
+      const card = column.at(-1);
+      return card ? [[card.id, columnIndex]] : [];
+    })
+  );
+}
+
+function getInitialDealAnimationOrders(tableau: Card[][]): Record<string, number> {
+  const orders: Record<string, number> = {};
+  const maxColumnHeight = Math.max(...tableau.map((column) => column.length));
+  let order = 0;
+
+  for (let rowIndex = 0; rowIndex < maxColumnHeight; rowIndex += 1) {
+    for (const column of tableau) {
+      const card = column[rowIndex];
+
+      if (!card) {
+        continue;
+      }
+
+      orders[card.id] = order;
+      order += 1;
+    }
+  }
+
+  return orders;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
