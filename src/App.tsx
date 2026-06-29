@@ -50,13 +50,15 @@ import "./styles/app.css";
 
 const DRAG_THRESHOLD_PX = 6;
 const BASE_CARD_MAX_WIDTH = 92;
-const BASE_STOCK_DECK_WIDTH = 54;
-const BASE_STOCK_DECK_HEIGHT = 72;
-const BASE_STOCK_MIN_HEIGHT = 76;
-const BASE_FOUNDATION_MIN_HEIGHT = 62;
 const DEFAULT_VISUAL_SCALE_MULTIPLIER = 1.3;
 const DEAL_ANIMATION_DURATION_MS = 620;
 const DEAL_ANIMATION_STAGGER_MS = 26;
+const TABLEAU_COLUMN_COUNT = 10;
+const TABLEAU_COLUMN_INLINE_PADDING = 10;
+const TABLEAU_COLUMN_BLOCK_PADDING = 10;
+const CARD_HEIGHT_RATIO = 1.38;
+const CARD_STACK_VISIBLE_RATIO = 0.32;
+const TOP_ROW_HEIGHT_RATIO = 0.83;
 
 type ModalName = "settings" | "stats" | "about" | "reset" | null;
 
@@ -91,6 +93,7 @@ export default function App() {
   const lastPointerDownAtRef = useRef(0);
   const suppressNextClickRef = useRef(false);
   const dealAnimationTimerRef = useRef<number | null>(null);
+  const playSurfaceRef = useRef<HTMLElement | null>(null);
   const recordedCompletionKeys = useRef(new Set<string>());
 
   useEffect(() => {
@@ -143,6 +146,33 @@ export default function App() {
       media?.removeEventListener("change", applyTheme);
     };
   }, [settings]);
+
+  useEffect(() => {
+    const surface = playSurfaceRef.current;
+
+    if (!surface) {
+      return;
+    }
+
+    const updateFit = () => applyAutoFitScale(surface, settings, gameRef.current);
+    updateFit();
+
+    const ResizeObserverCtor = (window as Window & { ResizeObserver?: typeof ResizeObserver }).ResizeObserver;
+
+    if (!ResizeObserverCtor) {
+      window.addEventListener("resize", updateFit);
+      return () => window.removeEventListener("resize", updateFit);
+    }
+
+    const observer = new ResizeObserverCtor(updateFit);
+    observer.observe(surface);
+    window.addEventListener("resize", updateFit);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateFit);
+    };
+  }, [game.tableau, settings]);
 
   useEffect(() => {
     if (!isLoaded) {
@@ -634,7 +664,7 @@ export default function App() {
         <Metric label="Complete" value={`${game.completed.length}/8`} />
       </section>
 
-      <section className="play-surface" aria-busy={!isLoaded}>
+      <section ref={playSurfaceRef} className="play-surface" aria-busy={!isLoaded}>
         <div className="foundation-zone" aria-label="Completed sequences">
           {Array.from({ length: 8 }, (_, index) => (
             <div key={index} className={index < game.completed.length ? "foundation is-filled" : "foundation"}>
@@ -875,10 +905,51 @@ function applyGameScale(root: HTMLElement, settings: Settings): void {
   root.dataset.gameScaleMode = settings.gameScaleMode;
   root.style.setProperty("--card-preferred-width", `${BASE_CARD_MAX_WIDTH * scale}px`);
   root.style.setProperty("--card-max-width", `${BASE_CARD_MAX_WIDTH * scale}px`);
-  root.style.setProperty("--stock-deck-width", `${BASE_STOCK_DECK_WIDTH * scale}px`);
-  root.style.setProperty("--stock-deck-height", `${BASE_STOCK_DECK_HEIGHT * scale}px`);
-  root.style.setProperty("--stock-min-height", `${BASE_STOCK_MIN_HEIGHT * scale}px`);
-  root.style.setProperty("--foundation-min-height", `${BASE_FOUNDATION_MIN_HEIGHT * scale}px`);
+}
+
+function applyAutoFitScale(surface: HTMLElement, settings: Settings, game: GameState): void {
+  const root = document.documentElement;
+
+  if (settings.gameScaleMode !== "auto") {
+    root.style.removeProperty("--card-fit-width");
+    return;
+  }
+
+  const surfaceWidth = surface.clientWidth;
+  const surfaceHeight = surface.clientHeight;
+
+  if (surfaceWidth <= 0 || surfaceHeight <= 0) {
+    return;
+  }
+
+  const surfaceStyle = getComputedStyle(surface);
+  const inlinePadding = parsePixels(surfaceStyle.paddingLeft) + parsePixels(surfaceStyle.paddingRight);
+  const blockPadding = parsePixels(surfaceStyle.paddingTop) + parsePixels(surfaceStyle.paddingBottom);
+  const rowGap = parsePixels(surfaceStyle.rowGap || surfaceStyle.gap);
+  const columnGap = readRootPixels("--tableau-gap");
+  const availableWidth = surfaceWidth - inlinePadding;
+  const availableHeight = surfaceHeight - blockPadding - rowGap;
+  const horizontalFit =
+    (availableWidth -
+      columnGap * (TABLEAU_COLUMN_COUNT - 1) -
+      TABLEAU_COLUMN_INLINE_PADDING * TABLEAU_COLUMN_COUNT) /
+    TABLEAU_COLUMN_COUNT;
+  const tallestColumn = Math.max(1, ...game.tableau.map((column) => column.length));
+  const stackHeightRatio = CARD_HEIGHT_RATIO * (1 + (tallestColumn - 1) * CARD_STACK_VISIBLE_RATIO);
+  const verticalFit =
+    (availableHeight - TABLEAU_COLUMN_BLOCK_PADDING) / (TOP_ROW_HEIGHT_RATIO + stackHeightRatio);
+  const fitWidth = Math.floor(Math.max(1, Math.min(horizontalFit, verticalFit)));
+
+  root.style.setProperty("--card-fit-width", `${fitWidth}px`);
+}
+
+function readRootPixels(property: string): number {
+  return parsePixels(getComputedStyle(document.documentElement).getPropertyValue(property));
+}
+
+function parsePixels(value: string): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function getStockDealAnimationOrders(tableau: Card[][]): Record<string, number> {
