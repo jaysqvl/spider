@@ -12,8 +12,8 @@ export interface Settings {
 }
 
 export const GAME_SCALE = {
-  min: 80,
-  max: 130,
+  min: 70,
+  max: 100,
   step: 5,
   default: 100
 } as const;

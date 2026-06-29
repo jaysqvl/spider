@@ -34,6 +34,8 @@ describe("App", () => {
     expect(screen.getByLabelText("Tableau")).toBeInTheDocument();
     expect(container.querySelectorAll("[data-column-index]")).toHaveLength(10);
     expect(screen.queryByText(/Column \d+/)).not.toBeInTheDocument();
+    await waitFor(() => expect(document.documentElement.dataset.gameScale).toBe("100"));
+    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-max-width"))).toBeCloseTo(119.6);
   });
 
   it("updates settings through the in-app settings dialog", async () => {
@@ -42,13 +44,13 @@ describe("App", () => {
 
     await user.click(await screen.findByRole("button", { name: "Settings" }));
     await user.selectOptions(screen.getByLabelText("Theme"), "dark");
-    fireEvent.change(screen.getByLabelText("Game scale"), { target: { value: "120" } });
+    fireEvent.change(screen.getByLabelText("Game scale"), { target: { value: "80" } });
     await user.click(screen.getByRole("button", { name: "Close" }));
 
     expect(document.documentElement.dataset.theme).toBe("dark");
-    await waitFor(() => expect(document.documentElement.dataset.gameScale).toBe("120"));
-    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-max-width"))).toBeCloseTo(110.4);
-    expect(parseFloat(document.documentElement.style.getPropertyValue("--tableau-min-width"))).toBeCloseTo(1104);
+    await waitFor(() => expect(document.documentElement.dataset.gameScale).toBe("80"));
+    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-max-width"))).toBeCloseTo(95.68);
+    expect(parseFloat(document.documentElement.style.getPropertyValue("--tableau-min-width"))).toBeCloseTo(956.8);
   });
 
   it("shows the whole selected run as a drag preview", async () => {

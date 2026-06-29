@@ -57,6 +57,7 @@ const BASE_STOCK_DECK_WIDTH = 54;
 const BASE_STOCK_DECK_HEIGHT = 72;
 const BASE_STOCK_MIN_HEIGHT = 76;
 const BASE_FOUNDATION_MIN_HEIGHT = 62;
+const DEFAULT_VISUAL_SCALE_MULTIPLIER = 1.3;
 const DEAL_ANIMATION_DURATION_MS = 620;
 const DEAL_ANIMATION_STAGGER_MS = 26;
 
@@ -841,7 +842,7 @@ export default function App() {
 }
 
 function applyGameScale(root: HTMLElement, gameScale: number): void {
-  const scale = gameScale / 100;
+  const scale = (gameScale / 100) * DEFAULT_VISUAL_SCALE_MULTIPLIER;
 
   root.dataset.gameScale = String(gameScale);
   root.style.setProperty("--card-min-width", `${BASE_CARD_MIN_WIDTH * scale}px`);

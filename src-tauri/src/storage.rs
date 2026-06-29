@@ -10,8 +10,8 @@ use std::{
 use tauri::{AppHandle, Manager};
 
 const DATABASE_FILE: &str = "spider.sqlite3";
-const GAME_SCALE_MIN: i64 = 80;
-const GAME_SCALE_MAX: i64 = 130;
+const GAME_SCALE_MIN: i64 = 70;
+const GAME_SCALE_MAX: i64 = 100;
 const GAME_SCALE_STEP: i64 = 5;
 const GAME_SCALE_DEFAULT: i64 = 100;
 
@@ -573,12 +573,12 @@ mod tests {
             "theme": "dark",
             "difficulty": "one-suit",
             "cardBack": "spruce",
-            "gameScale": 120,
+            "gameScale": 85,
             "reducedMotion": true
         }))
         .expect("settings should deserialize");
 
-        assert_eq!(settings.game_scale, 120);
+        assert_eq!(settings.game_scale, 85);
     }
 
     #[test]
@@ -594,6 +594,22 @@ mod tests {
             .expect("settings should deserialize"),
         );
 
-        assert_eq!(settings.game_scale, 130);
+        assert_eq!(settings.game_scale, 100);
+    }
+
+    #[test]
+    fn settings_normalize_old_oversized_game_scale() {
+        let settings = normalize_settings(
+            serde_json::from_value(json!({
+                "theme": "dark",
+                "difficulty": "one-suit",
+                "cardBack": "spruce",
+                "gameScale": 120,
+                "reducedMotion": true
+            }))
+            .expect("settings should deserialize"),
+        );
+
+        assert_eq!(settings.game_scale, 100);
     }
 }

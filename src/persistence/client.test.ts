@@ -29,7 +29,7 @@ describe("browser persistence fallback", () => {
       theme: "dark",
       difficulty: "four-suit",
       cardBack: "ember",
-      gameScale: 120,
+      gameScale: 85,
       reducedMotion: true
     });
 
@@ -38,12 +38,12 @@ describe("browser persistence fallback", () => {
       theme: "dark",
       difficulty: "four-suit",
       cardBack: "ember",
-      gameScale: 120,
+      gameScale: 85,
       reducedMotion: true
     });
   });
 
-  it("normalizes missing and out-of-range game scale settings", async () => {
+  it("normalizes missing, old oversized, and out-of-range game scale settings", async () => {
     localStorage.setItem(
       "spider.settings",
       JSON.stringify({
@@ -55,7 +55,20 @@ describe("browser persistence fallback", () => {
       })
     );
 
-    expect((await loadAppState()).settings.gameScale).toBe(130);
+    expect((await loadAppState()).settings.gameScale).toBe(100);
+
+    localStorage.setItem(
+      "spider.settings",
+      JSON.stringify({
+        theme: "dark",
+        difficulty: "one-suit",
+        cardBack: "spruce",
+        gameScale: 120,
+        reducedMotion: false
+      })
+    );
+
+    expect((await loadAppState()).settings.gameScale).toBe(100);
 
     localStorage.setItem(
       "spider.settings",
