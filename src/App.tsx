@@ -54,8 +54,6 @@ const DEFAULT_VISUAL_SCALE_MULTIPLIER = 1.3;
 const DEAL_ANIMATION_DURATION_MS = 620;
 const DEAL_ANIMATION_STAGGER_MS = 26;
 const TABLEAU_COLUMN_COUNT = 10;
-const TABLEAU_COLUMN_INLINE_PADDING = 10;
-const TABLEAU_COLUMN_BLOCK_PADDING = 10;
 const CARD_HEIGHT_RATIO = 1.38;
 const CARD_STACK_VISIBLE_RATIO = 0.32;
 const TOP_ROW_HEIGHT_RATIO = 0.83;
@@ -908,7 +906,7 @@ function applyGameScale(root: HTMLElement, settings: Settings): void {
   root.style.setProperty("--card-max-width", `${BASE_CARD_MAX_WIDTH * scale}px`);
 }
 
-function applyAutoFitScale(surface: HTMLElement, settings: Settings, game: GameState): void {
+export function applyAutoFitScale(surface: HTMLElement, settings: Settings, game: GameState): void {
   const root = document.documentElement;
 
   if (settings.gameScaleMode !== "auto") {
@@ -931,14 +929,10 @@ function applyAutoFitScale(surface: HTMLElement, settings: Settings, game: GameS
   const availableWidth = surfaceWidth - inlinePadding;
   const availableHeight = surfaceHeight - blockPadding - rowGap;
   const horizontalFit =
-    (availableWidth -
-      columnGap * (TABLEAU_COLUMN_COUNT - 1) -
-      TABLEAU_COLUMN_INLINE_PADDING * TABLEAU_COLUMN_COUNT) /
-    TABLEAU_COLUMN_COUNT;
+    (availableWidth - columnGap * (TABLEAU_COLUMN_COUNT - 1)) / TABLEAU_COLUMN_COUNT;
   const tallestColumn = Math.max(1, ...game.tableau.map((column) => column.length));
   const stackHeightRatio = CARD_HEIGHT_RATIO * (1 + (tallestColumn - 1) * CARD_STACK_VISIBLE_RATIO);
-  const verticalFit =
-    (availableHeight - TABLEAU_COLUMN_BLOCK_PADDING) / (TOP_ROW_HEIGHT_RATIO + stackHeightRatio);
+  const verticalFit = availableHeight / (TOP_ROW_HEIGHT_RATIO + stackHeightRatio);
   const fitWidth = Math.floor(Math.max(1, Math.min(horizontalFit, verticalFit)));
 
   root.style.setProperty("--card-fit-width", `${fitWidth}px`);

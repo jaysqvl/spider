@@ -53,15 +53,15 @@ export function CardView({
       {card.faceUp ? (
         <>
           <span className="card__corner">
-            <span>{rankLabel(card.rank)}</span>
-            <span>{suitSymbol(card.suit)}</span>
+            <span className="card__rank">{rankLabel(card.rank)}</span>
+            <span className="card__corner-suit">{suitSymbol(card.suit)}</span>
           </span>
           <span className="card__suit" aria-hidden="true">
             {suitSymbol(card.suit)}
           </span>
           <span className="card__corner card__corner--bottom">
-            <span>{rankLabel(card.rank)}</span>
-            <span>{suitSymbol(card.suit)}</span>
+            <span className="card__rank">{rankLabel(card.rank)}</span>
+            <span className="card__corner-suit">{suitSymbol(card.suit)}</span>
           </span>
         </>
       ) : (

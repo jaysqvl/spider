@@ -1,8 +1,9 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import App from "./App";
+import App, { applyAutoFitScale } from "./App";
 import type { Card, GameState, Rank, Suit } from "./game/types";
+import { DEFAULT_SETTINGS } from "./persistence/types";
 
 describe("App", () => {
   beforeEach(() => {
@@ -66,6 +67,36 @@ describe("App", () => {
     await user.click(screen.getByLabelText("Auto fit to window"));
 
     await waitFor(() => expect(document.documentElement.dataset.gameScaleMode).toBe("manual"));
+  });
+
+  it("uses responsive tableau spacing when auto-fitting cards", () => {
+    const surface = document.createElement("section");
+    Object.defineProperties(surface, {
+      clientWidth: { value: 520, configurable: true },
+      clientHeight: { value: 360, configurable: true }
+    });
+    surface.style.paddingLeft = "4px";
+    surface.style.paddingRight = "4px";
+    surface.style.paddingTop = "6px";
+    surface.style.paddingBottom = "6px";
+    surface.style.rowGap = "8px";
+    document.body.append(surface);
+    document.documentElement.style.setProperty("--tableau-gap", "2px");
+
+    applyAutoFitScale(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, gameWithRun());
+
+    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(49);
+    surface.remove();
+  });
+
+  it("renders scalable rank and suit labels on face-up cards", async () => {
+    const { container } = render(<App />);
+
+    await screen.findByLabelText("Tableau");
+    const faceUpCard = container.querySelector(".card--face-up");
+
+    expect(faceUpCard?.querySelectorAll(".card__rank").length).toBe(2);
+    expect(faceUpCard?.querySelectorAll(".card__corner-suit").length).toBe(2);
   });
 
   it("surfaces update checks from settings", async () => {
