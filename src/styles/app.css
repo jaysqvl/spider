@@ -92,40 +92,33 @@ button {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
 }
 
 .app-toolbar {
-  position: fixed;
+  position: sticky;
   top: 0;
-  right: 0;
-  left: 0;
   z-index: 40;
   display: grid;
   grid-template-columns: minmax(136px, max-content) minmax(0, 1fr) max-content;
   gap: 8px;
   align-items: center;
-  min-height: 44px;
-  padding: 5px 12px;
+  height: 5px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 12px;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
   box-shadow: 0 10px 24px rgba(26, 34, 30, 0.12);
-  transform: translateY(calc(-100% + 5px));
-  transition: transform 180ms ease;
-}
-
-.app-toolbar::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  bottom: -12px;
-  left: 0;
-  height: 12px;
+  transition:
+    height 180ms ease,
+    padding 180ms ease;
 }
 
 .app-toolbar:hover,
 .app-toolbar:focus-within {
-  transform: translateY(0);
+  height: 44px;
+  padding-block: 5px;
 }
 
 .brand-lockup {
