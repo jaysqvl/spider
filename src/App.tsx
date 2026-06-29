@@ -99,6 +99,7 @@ export default function App() {
   const toolbarCloseTimerRef = useRef<number | null>(null);
   const playSurfaceRef = useRef<HTMLElement | null>(null);
   const recordedCompletionKeys = useRef(new Set<string>());
+  const settingsRef = useRef(settings);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,7 +110,7 @@ export default function App() {
           return;
         }
 
-        setSettings(payload.settings);
+        setSettingsAndRef(payload.settings);
         setStats(payload.stats);
         setAppVersion(payload.appVersion);
         const loadedGame = payload.activeGame ?? newGame(payload.settings.difficulty);
@@ -347,12 +348,19 @@ export default function App() {
     setGame(next);
   }
 
+  function setSettingsAndRef(next: Settings): void {
+    settingsRef.current = next;
+    setSettings(next);
+  }
+
   function persistGame(next: GameState, previous = gameRef.current): void {
     clearDealAnimation();
     setGameAndRef(next);
     setSelectedMove(null);
     setHintMove(null);
-    void saveActiveGame(next);
+    void saveActiveGame(next).catch((error: unknown) => {
+      console.warn("Unable to save active game.", error);
+    });
 
     if (previous.status !== "won" && next.status === "won") {
       void recordOutcome(next, "won");
@@ -368,47 +376,57 @@ export default function App() {
     }
 
     recordedCompletionKeys.current.add(key);
-    const nextStats = await recordCompletedGame({
-      difficulty: state.difficulty,
-      seed: state.seed,
-      outcome,
-      score: state.score,
-      moves: state.moves,
-      elapsedMs: state.elapsedMs,
-      startedAt: state.startedAt,
-      completedAt: new Date().toISOString()
-    });
-    setStats(nextStats);
+    try {
+      const nextStats = await recordCompletedGame({
+        difficulty: state.difficulty,
+        seed: state.seed,
+        outcome,
+        score: state.score,
+        moves: state.moves,
+        elapsedMs: state.elapsedMs,
+        startedAt: state.startedAt,
+        completedAt: new Date().toISOString()
+      });
+      setStats(nextStats);
+    } catch (error: unknown) {
+      recordedCompletionKeys.current.delete(key);
+      console.warn("Unable to record game outcome.", error);
+    }
   }
 
-  async function recordAbandonIfNeeded(): Promise<void> {
+  function recordAbandonIfNeeded(): void {
     const current = gameRef.current;
 
     if (current.status === "playing" && current.moves > 0) {
-      await recordOutcome(current, "abandoned");
+      void recordOutcome(current, "abandoned");
     }
   }
 
   async function updateSettings(next: Settings): Promise<void> {
-    setSettings(next);
-    await saveSettings(next);
+    setSettingsAndRef(next);
+
+    try {
+      await saveSettings(next);
+    } catch (error: unknown) {
+      console.warn("Unable to save settings.", error);
+    }
   }
 
   async function handleDifficultyChange(difficulty: Difficulty): Promise<void> {
-    await updateSettings({ ...settings, difficulty });
+    await updateSettings({ ...settingsRef.current, difficulty });
     setMessage(`${DIFFICULTIES[difficulty].label} selected.`);
   }
 
-  async function handleNewGame(): Promise<void> {
-    await recordAbandonIfNeeded();
-    const next = newGame(settings.difficulty);
+  function handleNewGame(): void {
+    recordAbandonIfNeeded();
+    const next = newGame(settingsRef.current.difficulty);
     persistGame(next);
     scheduleDealAnimation(getInitialDealAnimationOrders(next.tableau));
     setMessage(`${DIFFICULTIES[next.difficulty].label} game started.`);
   }
 
-  async function handleRestart(): Promise<void> {
-    await recordAbandonIfNeeded();
+  function handleRestart(): void {
+    recordAbandonIfNeeded();
     const next = restartGame(gameRef.current);
     persistGame(next);
     scheduleDealAnimation(getInitialDealAnimationOrders(next.tableau));
@@ -657,7 +675,7 @@ export default function App() {
     await resetLocalData();
     const nextSettings = DEFAULT_SETTINGS;
     const nextGame = newGame(DEFAULT_SETTINGS.difficulty);
-    setSettings(nextSettings);
+    setSettingsAndRef(nextSettings);
     setStats(DEFAULT_STATS);
     setGameAndRef(nextGame);
     setModal(null);
@@ -846,7 +864,7 @@ export default function App() {
               <select
                 value={settings.theme}
                 onChange={(event) => {
-                  void updateSettings({ ...settings, theme: event.target.value as Settings["theme"] });
+                  void updateSettings({ ...settingsRef.current, theme: event.target.value as Settings["theme"] });
                 }}
               >
                 <option value="system">System</option>
@@ -860,7 +878,7 @@ export default function App() {
               <select
                 value={settings.cardBack}
                 onChange={(event) => {
-                  void updateSettings({ ...settings, cardBack: event.target.value as CardBack });
+                  void updateSettings({ ...settingsRef.current, cardBack: event.target.value as CardBack });
                 }}
               >
                 <option value="spruce">Spruce</option>
@@ -880,7 +898,7 @@ export default function App() {
                   value={settings.gameScale}
                   aria-label="Game scale"
                   onChange={(event) => {
-                    void updateSettings({ ...settings, gameScale: Number(event.target.value) });
+                    void updateSettings({ ...settingsRef.current, gameScale: Number(event.target.value) });
                   }}
                 />
                 <output>{settings.gameScale}%</output>
@@ -893,7 +911,7 @@ export default function App() {
                 checked={settings.gameScaleMode === "auto"}
                 onChange={(event) => {
                   void updateSettings({
-                    ...settings,
+                    ...settingsRef.current,
                     gameScaleMode: event.target.checked ? "auto" : "manual"
                   });
                 }}
@@ -906,7 +924,7 @@ export default function App() {
                 type="checkbox"
                 checked={settings.reducedMotion}
                 onChange={(event) => {
-                  void updateSettings({ ...settings, reducedMotion: event.target.checked });
+                  void updateSettings({ ...settingsRef.current, reducedMotion: event.target.checked });
                 }}
               />
               <span>Reduced motion</span>

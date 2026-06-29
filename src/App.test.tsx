@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App, { applyAutoFitScale } from "./App";
 import type { Card, GameState, Rank, Suit } from "./game/types";
 import { DEFAULT_SETTINGS } from "./persistence/types";
@@ -27,6 +27,10 @@ describe("App", () => {
         dispatchEvent: vi.fn()
       }))
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("starts on the playable Spider game screen", async () => {
@@ -165,6 +169,47 @@ describe("App", () => {
     expect(await screen.findByText(/installed Spider desktop app/)).toBeInTheDocument();
   });
 
+  it("keeps restart playable when local persistence writes fail", async () => {
+    const user = userEvent.setup();
+    const playedGame = {
+      ...gameWithRun(),
+      moves: 1,
+      score: 499
+    };
+    localStorage.setItem("spider.activeGame", JSON.stringify(playedGame));
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const setItemSpy = failStorageWrites("spider.activeGame", "spider.stats");
+
+    render(<App />);
+
+    await screen.findByText("Saved game resumed.");
+    await user.click(screen.getByRole("button", { name: "Restart" }));
+
+    expect(await screen.findByText("Game restarted.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Tableau")).toBeInTheDocument();
+    expect(warnSpy).toHaveBeenCalled();
+    setItemSpy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  it("starts the newly selected difficulty even when settings persistence fails", async () => {
+    const user = userEvent.setup();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const setItemSpy = failStorageWrites("spider.activeGame", "spider.settings");
+
+    render(<App />);
+
+    await screen.findByText("New game ready.");
+    await user.selectOptions(screen.getByLabelText("Difficulty"), "four-suit");
+    await user.click(screen.getByRole("button", { name: "New Game" }));
+
+    expect(await screen.findByText("4 Suits game started.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Spider" }).nextElementSibling).toHaveTextContent("4 Suits");
+    expect(warnSpy).toHaveBeenCalled();
+    setItemSpy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
   it("shows clean version and copyright metadata in the about dialog", async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -279,4 +324,20 @@ function card(rank: Rank, suit: Suit = "spades"): Card {
     suit,
     faceUp: true
   };
+}
+
+function failStorageWrites(...keys: string[]) {
+  const originalSetItem = Storage.prototype.setItem;
+
+  return vi.spyOn(Storage.prototype, "setItem").mockImplementation(function setItem(
+    this: Storage,
+    key: string,
+    value: string
+  ) {
+    if (keys.includes(key)) {
+      throw new Error(`Blocked test write for ${key}.`);
+    }
+
+    return originalSetItem.call(this, key, value);
+  });
 }

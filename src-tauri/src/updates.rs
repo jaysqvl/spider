@@ -62,8 +62,7 @@ pub async fn install_update(
         .await
         .map_err(to_string)?;
 
-    app.request_restart();
-    Ok(())
+    app.restart();
 }
 
 fn to_string(error: impl ToString) -> String {
