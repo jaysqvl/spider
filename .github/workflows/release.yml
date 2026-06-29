@@ -25,10 +25,13 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       version: ${{ steps.version.outputs.version }}
       prerelease: ${{ steps.version.outputs.prerelease }}
+      body: ${{ steps.release_notes.outputs.body }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -74,6 +77,17 @@ jobs:
           else
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Build release notes
+        id: release_notes
+        shell: bash
+        run: |
+          notes="$(node scripts/release-notes.mjs stable "${{ steps.version.outputs.tag }}")"
+          {
+            echo "body<<RELEASE_NOTES"
+            echo "$notes"
+            echo "RELEASE_NOTES"
+          } >> "$GITHUB_OUTPUT"
 
   quality-gate:
     name: Release quality gate
@@ -245,15 +259,7 @@ jobs:
         with:
           tagName: ${{ needs.validate.outputs.tag }}
           releaseName: Spider ${{ needs.validate.outputs.tag }}
-          releaseBody: |
-            Desktop release for Spider.
-
-            Downloads:
-            - macos-apple-silicon-arm64 DMG: Apple Silicon Macs, including M1, M2, M3, and M4.
-            - macos-intel-x64 DMG: Intel Macs.
-            - windows-x64 NSIS EXE: 64-bit Windows on Intel or AMD CPUs.
-
-            Files ending in .tar.gz, .sig, and latest.json support automatic updates.
+          releaseBody: ${{ needs.validate.outputs.body }}
           releaseDraft: false
           prerelease: ${{ needs.validate.outputs.prerelease }}
           args: ${{ matrix.args }}

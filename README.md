@@ -78,6 +78,8 @@ Installed desktop builds check for updates on launch, install available signed u
 
 Stable builds update from GitHub's latest stable release feed. Development builds use a separate `Spider Dev` app identity, local-data directory, and updater feed at the `dev-latest` prerelease, so test builds do not get pushed to stable installs.
 
+Published release notes include the commit subjects and hashes in the release range so users can see what changed before downloading a new installer.
+
 For this app, the generated private key is stored locally at:
 
 ```bash

@@ -58,6 +58,14 @@ const releaseAssetExpectations = [
   {
     label: "matrix asset pattern input",
     pattern: "assetNamePattern: ${{ matrix.asset_name_pattern }}"
+  },
+  {
+    label: "stable release notes generation",
+    pattern: 'node scripts/release-notes.mjs stable "${{ steps.version.outputs.tag }}"'
+  },
+  {
+    label: "stable release notes body",
+    pattern: "releaseBody: ${{ needs.validate.outputs.body }}"
   }
 ];
 const releaseAssetFailures = releaseAssetExpectations
@@ -95,6 +103,14 @@ const devReleaseExpectations = [
     label: "dev macOS Apple Silicon arm64",
     pattern:
       'asset_name_pattern: "Spider_Dev_[version]_macos-apple-silicon-arm64_[bundle][ext]"'
+  },
+  {
+    label: "dev release notes generation",
+    pattern: 'node scripts/release-notes.mjs dev "${{ steps.version.outputs.version }}"'
+  },
+  {
+    label: "dev release notes body",
+    pattern: "releaseBody: ${{ needs.prepare.outputs.body }}"
   }
 ];
 const devReleaseFailures = devReleaseExpectations
