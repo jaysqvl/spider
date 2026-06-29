@@ -58,7 +58,8 @@ const TABLEAU_COLUMN_COUNT = 10;
 const CARD_HEIGHT_RATIO = 1.38;
 const CARD_STACK_VISIBLE_RATIO = 0.32;
 const TOP_ROW_HEIGHT_RATIO = 0.83;
-const TOOLBAR_OPEN_DELAY_MS = 120;
+const TABLEAU_FIT_SAFETY_PX = 2;
+const TOOLBAR_OPEN_DELAY_MS = 60;
 const TOOLBAR_CLOSE_DELAY_MS = 2400;
 
 type ModalName = "settings" | "stats" | "about" | "reset" | null;
@@ -709,6 +710,7 @@ export default function App() {
         className="toolbar-hotspot"
         aria-hidden="true"
         onPointerEnter={queueToolbarOpen}
+        onPointerMove={queueToolbarOpen}
         onPointerLeave={scheduleToolbarClose}
       />
       <Toolbar
@@ -1010,8 +1012,8 @@ export function applyAutoFitScale(surface: HTMLElement, settings: Settings, game
     return;
   }
 
-  const surfaceWidth = surface.clientWidth;
-  const surfaceHeight = surface.clientHeight;
+  const surfaceWidth = getVisibleInlineSize(surface);
+  const surfaceHeight = getVisibleBlockSize(surface);
 
   if (surfaceWidth <= 0 || surfaceHeight <= 0) {
     return;
@@ -1022,26 +1024,84 @@ export function applyAutoFitScale(surface: HTMLElement, settings: Settings, game
   const blockPadding = parsePixels(surfaceStyle.paddingTop) + parsePixels(surfaceStyle.paddingBottom);
   const rowGap = parsePixels(surfaceStyle.rowGap || surfaceStyle.gap);
   const columnGap = readRootPixels("--tableau-gap");
-  const visibleSurfaceWidth = getVisibleInlineSize(surfaceWidth);
-  const availableWidth = visibleSurfaceWidth - inlinePadding;
-  const availableHeight = surfaceHeight - blockPadding - rowGap;
+  const availableWidth = Math.max(1, surfaceWidth - inlinePadding - TABLEAU_FIT_SAFETY_PX);
   const horizontalFit =
     (availableWidth - columnGap * (TABLEAU_COLUMN_COUNT - 1)) / TABLEAU_COLUMN_COUNT;
   const tallestColumn = Math.max(1, ...game.tableau.map((column) => column.length));
   const stackHeightRatio = CARD_HEIGHT_RATIO * (1 + (tallestColumn - 1) * CARD_STACK_VISIBLE_RATIO);
-  const verticalFit = availableHeight / (TOP_ROW_HEIGHT_RATIO + stackHeightRatio);
+  const visibleStackHeight = getVisibleStackHeight(surface, surfaceHeight, surfaceStyle);
+  const verticalFit =
+    visibleStackHeight === null
+      ? Math.max(1, surfaceHeight - blockPadding - rowGap - TABLEAU_FIT_SAFETY_PX) /
+        (TOP_ROW_HEIGHT_RATIO + stackHeightRatio)
+      : visibleStackHeight / stackHeightRatio;
   const fitWidth = Math.floor(Math.max(1, Math.min(horizontalFit, verticalFit)));
 
   root.style.setProperty("--card-fit-width", `${fitWidth}px`);
 }
 
-function getVisibleInlineSize(surfaceWidth: number): number {
-  const viewportWidth = window.visualViewport?.width;
-  const candidates = [surfaceWidth, viewportWidth, window.innerWidth, document.documentElement.clientWidth].filter(
-    (value): value is number => value !== undefined && Number.isFinite(value) && value > 0
+function getVisibleStackHeight(
+  surface: HTMLElement,
+  surfaceHeight: number,
+  surfaceStyle: CSSStyleDeclaration
+): number | null {
+  const tableau = surface.querySelector<HTMLElement>(".tableau");
+
+  if (!tableau) {
+    return null;
+  }
+
+  const surfaceRect = surface.getBoundingClientRect();
+  const tableauRect = tableau.getBoundingClientRect();
+
+  if (surfaceRect.height <= 0 || tableauRect.height <= 0) {
+    return null;
+  }
+
+  const tableauTopOffset = Math.max(0, tableauRect.top - surfaceRect.top);
+  const bottomPadding = parsePixels(surfaceStyle.paddingBottom);
+
+  return Math.max(1, surfaceHeight - tableauTopOffset - bottomPadding - TABLEAU_FIT_SAFETY_PX);
+}
+
+function getVisibleInlineSize(surface: HTMLElement): number {
+  const rect = surface.getBoundingClientRect();
+  const viewportWidth = getViewportWidth();
+  const visibleRectWidth =
+    viewportWidth > 0 && rect.width > 0
+      ? Math.max(0, Math.min(rect.right, viewportWidth) - Math.max(rect.left, 0))
+      : 0;
+  const candidates = [surface.clientWidth, rect.width, visibleRectWidth, viewportWidth, document.documentElement.clientWidth].filter(
+    isPositiveFiniteNumber
   );
 
-  return candidates.length > 0 ? Math.min(...candidates) : surfaceWidth;
+  return candidates.length > 0 ? Math.min(...candidates) : surface.clientWidth;
+}
+
+function getVisibleBlockSize(surface: HTMLElement): number {
+  const rect = surface.getBoundingClientRect();
+  const viewportHeight = getViewportHeight();
+  const visibleRectHeight =
+    viewportHeight > 0 && rect.height > 0
+      ? Math.max(0, Math.min(rect.bottom, viewportHeight) - Math.max(rect.top, 0))
+      : 0;
+  const candidates = [surface.clientHeight, rect.height, visibleRectHeight, viewportHeight, document.documentElement.clientHeight].filter(
+    isPositiveFiniteNumber
+  );
+
+  return candidates.length > 0 ? Math.min(...candidates) : surface.clientHeight;
+}
+
+function getViewportWidth(): number {
+  return window.visualViewport?.width ?? window.innerWidth;
+}
+
+function getViewportHeight(): number {
+  return window.visualViewport?.height ?? window.innerHeight;
+}
+
+function isPositiveFiniteNumber(value: number | undefined): value is number {
+  return value !== undefined && Number.isFinite(value) && value > 0;
 }
 
 function readRootPixels(property: string): number {

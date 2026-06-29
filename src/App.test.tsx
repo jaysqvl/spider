@@ -95,6 +95,39 @@ describe("App", () => {
     surface.remove();
   });
 
+  it("shrinks auto-fit card width to the visible play height", () => {
+    const surface = document.createElement("section");
+    Object.defineProperties(surface, {
+      clientWidth: { value: 1200, configurable: true },
+      clientHeight: { value: 900, configurable: true }
+    });
+    vi.spyOn(surface, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 110,
+      left: 0,
+      top: 110,
+      right: 1200,
+      bottom: 1010,
+      width: 1200,
+      height: 900,
+      toJSON: () => ({})
+    });
+    Object.defineProperty(window, "innerWidth", { value: 1200, configurable: true });
+    Object.defineProperty(window, "innerHeight", { value: 480, configurable: true });
+    surface.style.paddingLeft = "4px";
+    surface.style.paddingRight = "4px";
+    surface.style.paddingTop = "6px";
+    surface.style.paddingBottom = "6px";
+    surface.style.rowGap = "8px";
+    document.body.append(surface);
+    document.documentElement.style.setProperty("--tableau-gap", "4px");
+
+    applyAutoFitScale(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, gameWithTallColumn(16));
+
+    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(39);
+    surface.remove();
+  });
+
   it("opens the toolbar intentionally and closes it after a delay", async () => {
     const { container } = render(<App />);
 
@@ -113,7 +146,7 @@ describe("App", () => {
     expect(toolbar).not.toHaveClass("is-open");
 
     fireEvent.pointerEnter(hotspot!);
-    act(() => vi.advanceTimersByTime(120));
+    act(() => vi.advanceTimersByTime(60));
     expect(toolbar).toHaveClass("is-open");
 
     fireEvent.pointerLeave(toolbar!);
@@ -312,6 +345,13 @@ function gameWithRun(): GameState {
     status: "playing",
     undoStack: [],
     redoStack: []
+  };
+}
+
+function gameWithTallColumn(count: number): GameState {
+  return {
+    ...gameWithRun(),
+    tableau: [Array.from({ length: count }, (_, index) => card(((index % 13) + 1) as Rank)), [], [], [], [], [], [], [], [], []]
   };
 }
 
