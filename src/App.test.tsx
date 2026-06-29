@@ -38,6 +38,8 @@ describe("App", () => {
     await waitFor(() => expect(document.documentElement.dataset.gameScale).toBe("100"));
     expect(document.documentElement.dataset.gameScaleMode).toBe("auto");
     expect(parseFloat(document.documentElement.style.getPropertyValue("--card-preferred-width"))).toBeCloseTo(119.6);
+    expect(container.querySelector(".status-line")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveClass("sr-only");
   });
 
   it("updates settings through the in-app settings dialog", async () => {

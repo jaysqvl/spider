@@ -766,9 +766,9 @@ export default function App() {
         ) : null}
       </section>
 
-      <footer className="status-line" role="status">
-        <span>{message}</span>
-      </footer>
+      <div className="sr-only" role="status" aria-live="polite">
+        {message}
+      </div>
 
       {modal === "settings" ? (
         <Modal title="Settings" onClose={() => setModal(null)}>

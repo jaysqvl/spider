@@ -92,7 +92,7 @@ button {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto auto minmax(0, 1fr);
 }
 
 .app-toolbar {
@@ -579,14 +579,6 @@ button {
   font-weight: 800;
 }
 
-.status-line {
-  padding: 9px 16px;
-  border-top: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -706,6 +698,18 @@ button {
 .reset-panel {
   display: grid;
   gap: 12px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  padding: 0;
 }
 
 @media (max-width: 920px) {
