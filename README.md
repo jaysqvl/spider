@@ -2,6 +2,8 @@
 
 Spider is an independent cross-platform desktop Spider Solitaire app built with Tauri 2, React, TypeScript, Vite, and SQLite.
 
+I built Spider for my dad, who wanted a simpler Spider Solitaire experience: clear cards, straightforward controls, local saves, and none of the ads, accounts, online features, or extra clutter that get in the way of just playing.
+
 ## Current Scope
 
 - Classic Spider Solitaire only.
@@ -70,6 +72,8 @@ Downloadable builds are published from GitHub Releases:
 Release tags use semantic versioning with a leading `v`, for example `v0.1.0`. The tag version must match `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`.
 
 Updater-capable releases require `TAURI_SIGNING_PRIVATE_KEY` in GitHub Actions secrets. Without it, the workflow fails instead of publishing an installer that cannot update. The public updater key is committed in `src-tauri/tauri.conf.json`; the matching private key must stay secret.
+
+Installed desktop builds check for updates on launch, install available signed updates silently, and restart into the new version. Browser previews do not check or install releases.
 
 For this app, the generated private key is stored locally at:
 
