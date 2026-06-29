@@ -121,6 +121,10 @@ jobs:
       - name: Verify workflow action pins
         run: npm run verify:workflows
 
+      - name: Rust locked dependency check
+        shell: bash
+        run: cargo metadata --manifest-path src-tauri/Cargo.toml --locked --format-version 1 > /dev/null
+
       - name: Import Windows certificate
         if: matrix.os == 'windows-latest'
         shell: pwsh

@@ -77,6 +77,10 @@ jobs:
       - name: Rust format
         run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 
+      - name: Rust locked dependency check
+        shell: bash
+        run: cargo metadata --manifest-path src-tauri/Cargo.toml --locked --format-version 1 > /dev/null
+
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
