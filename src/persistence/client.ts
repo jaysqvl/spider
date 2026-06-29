@@ -19,6 +19,8 @@ const STATS_KEY = "spider.stats";
 const DESKTOP_UPDATE_UNAVAILABLE_MESSAGE =
   "Updates are only available in the installed Spider desktop app. This browser preview cannot check or install releases.";
 
+export type AutoUpdateOutcome = "unavailable" | "current" | "installed";
+
 declare global {
   interface Window {
     __TAURI_INTERNALS__?: unknown;
@@ -107,8 +109,35 @@ export async function installUpdate(): Promise<void> {
   }
 }
 
+export async function installAvailableUpdate(): Promise<AutoUpdateOutcome> {
+  if (!isTauriRuntime()) {
+    return "unavailable";
+  }
+
+  try {
+    const update = await checkForUpdates();
+
+    if (!update) {
+      return "current";
+    }
+
+    await installUpdate();
+    return "installed";
+  } catch (error) {
+    if (isDesktopUpdateUnavailable(error)) {
+      return "unavailable";
+    }
+
+    throw error;
+  }
+}
+
 function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && Boolean(window.__TAURI_INTERNALS__);
+}
+
+function isDesktopUpdateUnavailable(error: unknown): boolean {
+  return error instanceof Error && error.message === DESKTOP_UPDATE_UNAVAILABLE_MESSAGE;
 }
 
 async function invokeOrLocal<T>(

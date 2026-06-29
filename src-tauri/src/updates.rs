@@ -44,7 +44,10 @@ pub async fn check_for_updates(
 }
 
 #[tauri::command]
-pub async fn install_update(pending_update: State<'_, PendingUpdate>) -> Result<(), String> {
+pub async fn install_update(
+    app: AppHandle,
+    pending_update: State<'_, PendingUpdate>,
+) -> Result<(), String> {
     let Some(update) = pending_update
         .0
         .lock()
@@ -57,7 +60,10 @@ pub async fn install_update(pending_update: State<'_, PendingUpdate>) -> Result<
     update
         .download_and_install(|_, _| {}, || {})
         .await
-        .map_err(to_string)
+        .map_err(to_string)?;
+
+    app.request_restart();
+    Ok(())
 }
 
 fn to_string(error: impl ToString) -> String {

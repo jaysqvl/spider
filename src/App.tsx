@@ -27,6 +27,7 @@ import { Modal } from "./components/Modal";
 import { Toolbar } from "./components/Toolbar";
 import {
   checkForUpdates,
+  installAvailableUpdate,
   installUpdate,
   loadAppState,
   loadStats,
@@ -82,7 +83,7 @@ export default function App() {
   const [dragPreview, setDragPreview] = useState<DragPreviewState | null>(null);
   const [dealAnimationOrders, setDealAnimationOrders] = useState<Record<string, number>>({});
   const [message, setMessage] = useState("Ready.");
-  const [appVersion, setAppVersion] = useState("0.1.1");
+  const [appVersion, setAppVersion] = useState("0.1.2");
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const gameRef = useRef(game);
@@ -142,6 +143,24 @@ export default function App() {
       media?.removeEventListener("change", applyTheme);
     };
   }, [settings]);
+
+  useEffect(() => {
+    if (!isLoaded) {
+      return;
+    }
+
+    let cancelled = false;
+
+    installAvailableUpdate().catch((error: unknown) => {
+      if (!cancelled) {
+        console.warn("Silent update failed.", error);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoaded]);
 
   useEffect(() => {
     let lastTick = Date.now();

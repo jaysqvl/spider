@@ -4,6 +4,7 @@ import { newGame } from "../game/engine";
 import {
   checkForUpdates,
   clearActiveGame,
+  installAvailableUpdate,
   loadAppState,
   recordCompletedGame,
   resetLocalData,
@@ -84,6 +85,46 @@ describe("browser persistence fallback", () => {
     invokeMock.mockRejectedValue("command check_for_updates not found");
 
     await expect(checkForUpdates()).rejects.toThrow("installed Spider desktop app");
+  });
+
+  it("skips silent auto updates outside the installed desktop runtime", async () => {
+    await expect(installAvailableUpdate()).resolves.toBe("unavailable");
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
+  it("reports silent auto updates are current when no release is available", async () => {
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      configurable: true,
+      value: {}
+    });
+    invokeMock.mockResolvedValueOnce(null);
+
+    await expect(installAvailableUpdate()).resolves.toBe("current");
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    expect(invokeMock).toHaveBeenCalledWith("check_for_updates");
+  });
+
+  it("installs available desktop updates during silent auto update", async () => {
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      configurable: true,
+      value: {}
+    });
+    invokeMock.mockResolvedValueOnce({ version: "0.1.3", currentVersion: "0.1.2" });
+    invokeMock.mockResolvedValueOnce(undefined);
+
+    await expect(installAvailableUpdate()).resolves.toBe("installed");
+    expect(invokeMock).toHaveBeenNthCalledWith(1, "check_for_updates");
+    expect(invokeMock).toHaveBeenNthCalledWith(2, "install_update");
+  });
+
+  it("keeps silent auto updates quiet when desktop updater commands are unavailable", async () => {
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      configurable: true,
+      value: {}
+    });
+    invokeMock.mockRejectedValue("command check_for_updates not found");
+
+    await expect(installAvailableUpdate()).resolves.toBe("unavailable");
   });
 
   it("normalizes missing, old oversized, and out-of-range game scale settings", async () => {
