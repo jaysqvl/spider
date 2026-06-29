@@ -78,3 +78,5 @@ This repository is a portfolio-quality desktop game project. Keep it easy to rev
 - After each release workflow run, verify the published release with `gh release view` and confirm installer assets are present before calling the release complete.
 - Release workflows must produce downloadable installers, signed updater artifacts, and `latest.json`; source-code archives alone do not count as a shipped app release.
 - Do not publish a first installable release without updater configuration compiled in. The app needs a committed public updater key and the matching `TAURI_SIGNING_PRIVATE_KEY` GitHub secret.
+- Commit `src-tauri/Cargo.lock` for native releases and treat a missing Rust lockfile as release-blocking.
+- Pin third-party release workflow actions to immutable commit SHAs before trusting them with release, signing, updater, or notarization secrets.
