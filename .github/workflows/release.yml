@@ -56,7 +56,7 @@ jobs:
           version="${tag#v}"
           package_version="$(node -p "require('./package.json').version")"
           tauri_version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
-          cargo_version="$(sed -n 's/^version = \"\\(.*\\)\"/\\1/p' src-tauri/Cargo.toml | head -n 1)"
+          cargo_version="$(node -e "const cargo = require('fs').readFileSync('src-tauri/Cargo.toml', 'utf8'); console.log(cargo.match(/^version = \"([^\"]+)\"/m)?.[1] ?? '')")"
 
           if [[ "$package_version" != "$version" || "$tauri_version" != "$version" || "$cargo_version" != "$version" ]]; then
             echo "::error::Version mismatch. tag=$tag package.json=$package_version tauri.conf.json=$tauri_version Cargo.toml=$cargo_version"
