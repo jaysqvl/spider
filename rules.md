@@ -25,6 +25,7 @@ This repository is a portfolio-quality desktop game project. Keep it easy to rev
 - Display settings such as theme, card back, reduced motion, and game scale must remain persisted settings with UI coverage.
 - Game scale must flow through CSS variables and shared settings types; do not duplicate hardcoded card or tableau dimensions in feature code.
 - The default `100%` game scale is the comfort baseline for playability and maps to the original 130% visual size; lower values are shrink options.
+- Auto-fit game scale is the default. It must shrink the tableau to the available window width rather than forcing horizontal scrolling during normal play.
 - Update checks must be reachable from Settings and use the Tauri updater path in desktop builds.
 - Tableau columns should stay visually quiet; do not render developer-style column numbers on the game board.
 - Deal animations are UI-only. They must not alter engine state, persistence payloads, or move legality.

@@ -8,6 +8,7 @@ describe("App", () => {
   beforeEach(() => {
     localStorage.clear();
     document.documentElement.removeAttribute("data-game-scale");
+    document.documentElement.removeAttribute("data-game-scale-mode");
     document.documentElement.removeAttribute("data-motion");
     document.documentElement.removeAttribute("data-theme");
     document.documentElement.removeAttribute("style");
@@ -35,7 +36,8 @@ describe("App", () => {
     expect(container.querySelectorAll("[data-column-index]")).toHaveLength(10);
     expect(screen.queryByText(/Column \d+/)).not.toBeInTheDocument();
     await waitFor(() => expect(document.documentElement.dataset.gameScale).toBe("100"));
-    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-max-width"))).toBeCloseTo(119.6);
+    expect(document.documentElement.dataset.gameScaleMode).toBe("auto");
+    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-preferred-width"))).toBeCloseTo(119.6);
   });
 
   it("updates settings through the in-app settings dialog", async () => {
@@ -45,12 +47,22 @@ describe("App", () => {
     await user.click(await screen.findByRole("button", { name: "Settings" }));
     await user.selectOptions(screen.getByLabelText("Theme"), "dark");
     fireEvent.change(screen.getByLabelText("Game scale"), { target: { value: "80" } });
+    expect(screen.getByLabelText("Auto fit to window")).toBeChecked();
     await user.click(screen.getByRole("button", { name: "Close" }));
 
     expect(document.documentElement.dataset.theme).toBe("dark");
     await waitFor(() => expect(document.documentElement.dataset.gameScale).toBe("80"));
-    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-max-width"))).toBeCloseTo(95.68);
-    expect(parseFloat(document.documentElement.style.getPropertyValue("--tableau-min-width"))).toBeCloseTo(956.8);
+    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-preferred-width"))).toBeCloseTo(95.68);
+  });
+
+  it("can switch game scale out of auto fit mode", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    await user.click(screen.getByLabelText("Auto fit to window"));
+
+    await waitFor(() => expect(document.documentElement.dataset.gameScaleMode).toBe("manual"));
   });
 
   it("surfaces update checks from settings", async () => {

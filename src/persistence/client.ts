@@ -190,6 +190,7 @@ function mergeSettings(value: unknown): Settings {
         ? value.cardBack
         : DEFAULT_SETTINGS.cardBack,
     gameScale: normalizeGameScale(value.gameScale),
+    gameScaleMode: isGameScaleMode(value.gameScaleMode) ? value.gameScaleMode : DEFAULT_SETTINGS.gameScaleMode,
     reducedMotion: typeof value.reducedMotion === "boolean" ? value.reducedMotion : DEFAULT_SETTINGS.reducedMotion
   };
 }
@@ -276,6 +277,10 @@ function writeJson(key: string, value: unknown): void {
 
 function isDifficulty(value: unknown): value is Difficulty {
   return value === "one-suit" || value === "two-suit" || value === "four-suit";
+}
+
+function isGameScaleMode(value: unknown): value is Settings["gameScaleMode"] {
+  return value === "auto" || value === "manual";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

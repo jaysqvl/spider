@@ -40,6 +40,7 @@ describe("browser persistence fallback", () => {
       difficulty: "four-suit",
       cardBack: "ember",
       gameScale: 85,
+      gameScaleMode: "manual",
       reducedMotion: true
     });
 
@@ -49,6 +50,7 @@ describe("browser persistence fallback", () => {
       difficulty: "four-suit",
       cardBack: "ember",
       gameScale: 85,
+      gameScaleMode: "manual",
       reducedMotion: true
     });
   });
@@ -65,6 +67,7 @@ describe("browser persistence fallback", () => {
       difficulty: "two-suit",
       cardBack: "midnight",
       gameScale: 90,
+      gameScaleMode: "auto",
       reducedMotion: true
     });
 
@@ -91,6 +94,7 @@ describe("browser persistence fallback", () => {
         difficulty: "one-suit",
         cardBack: "spruce",
         gameScale: 999,
+        gameScaleMode: "auto",
         reducedMotion: false
       })
     );
@@ -104,6 +108,7 @@ describe("browser persistence fallback", () => {
         difficulty: "one-suit",
         cardBack: "spruce",
         gameScale: 120,
+        gameScaleMode: "auto",
         reducedMotion: false
       })
     );
@@ -121,6 +126,23 @@ describe("browser persistence fallback", () => {
     );
 
     expect((await loadAppState()).settings.gameScale).toBe(100);
+    expect((await loadAppState()).settings.gameScaleMode).toBe("auto");
+  });
+
+  it("normalizes invalid game scale modes to auto", async () => {
+    localStorage.setItem(
+      "spider.settings",
+      JSON.stringify({
+        theme: "dark",
+        difficulty: "one-suit",
+        cardBack: "spruce",
+        gameScale: 90,
+        gameScaleMode: "giant",
+        reducedMotion: false
+      })
+    );
+
+    expect((await loadAppState()).settings.gameScaleMode).toBe("auto");
   });
 
   it("records completed games into aggregate stats", async () => {
@@ -155,6 +177,7 @@ describe("browser persistence fallback", () => {
       difficulty: "two-suit",
       cardBack: "midnight",
       gameScale: 95,
+      gameScaleMode: "auto",
       reducedMotion: false
     });
     await resetLocalData();

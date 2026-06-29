@@ -15,16 +15,24 @@
   --card: #fffdf7;
   --card-edge: rgba(33, 36, 31, 0.2);
   --shadow: 0 18px 40px rgba(26, 34, 30, 0.18);
-  --card-min-width: 58px;
-  --card-fluid-width: 7vw;
+  --card-readable-min-width: 42px;
+  --card-preferred-width: 92px;
   --card-max-width: 92px;
-  --tableau-min-width: 920px;
-  --tableau-compact-min-width: 780px;
+  --play-surface-inline-padding: clamp(10px, 1.4vw, 18px);
+  --play-surface-block-padding: clamp(10px, 1.4vw, 18px);
+  --tableau-gap: clamp(6px, 0.95vw, 12px);
+  --tableau-available-width: calc(100vw - (var(--play-surface-inline-padding) * 2));
+  --card-fit-width: calc((var(--tableau-available-width) - (var(--tableau-gap) * 9)) / 10);
+  --card-auto-width: clamp(
+    var(--card-readable-min-width),
+    min(var(--card-preferred-width), var(--card-fit-width)),
+    var(--card-preferred-width)
+  );
   --stock-deck-width: 54px;
   --stock-deck-height: 72px;
   --stock-min-height: 76px;
   --foundation-min-height: 62px;
-  --card-width: clamp(var(--card-min-width), var(--card-fluid-width), var(--card-max-width));
+  --card-width: var(--card-auto-width);
   --card-height: calc(var(--card-width) * 1.38);
   --card-offset: calc(var(--card-height) * -0.68);
   font-family:
@@ -60,11 +68,15 @@
 
 body {
   margin: 0;
-  min-width: 960px;
   min-height: 100vh;
+  overflow-x: hidden;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent 40%),
     var(--bg);
+}
+
+:root[data-game-scale-mode="manual"] {
+  --card-auto-width: var(--card-preferred-width);
 }
 
 button,
@@ -200,7 +212,7 @@ button {
 
 .score-strip {
   display: grid;
-  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
   gap: 0;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
@@ -235,23 +247,29 @@ button {
   grid-template-areas:
     "stock foundations"
     "tableau tableau";
-  grid-template-columns: 172px 1fr;
+  grid-template-columns: minmax(112px, calc(var(--card-width) * 1.8)) minmax(0, 1fr);
   grid-template-rows: auto 1fr;
-  gap: 18px;
+  gap: clamp(10px, 1.35vw, 18px);
   min-height: 0;
-  padding: 18px;
-  overflow: auto;
+  padding: var(--play-surface-block-padding) var(--play-surface-inline-padding);
+  overflow-x: hidden;
+  overflow-y: auto;
   background:
     radial-gradient(circle at 20% 18%, rgba(255, 255, 255, 0.12), transparent 24%),
     linear-gradient(135deg, var(--felt), var(--felt-dark));
 }
 
+:root[data-game-scale-mode="manual"] .play-surface {
+  overflow-x: auto;
+}
+
 .foundation-zone {
   grid-area: foundations;
   display: grid;
-  grid-template-columns: repeat(8, minmax(52px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: clamp(4px, 0.75vw, 10px);
   align-items: center;
+  min-width: 0;
 }
 
 .foundation {
@@ -275,8 +293,8 @@ button {
 
 .stock {
   display: grid;
-  grid-template-columns: 72px 1fr;
-  gap: 12px;
+  grid-template-columns: minmax(42px, var(--stock-deck-width)) 1fr;
+  gap: clamp(7px, 1vw, 12px);
   align-items: center;
   width: 100%;
   min-height: var(--stock-min-height);
@@ -323,12 +341,13 @@ button {
   grid-area: tableau;
   display: grid;
   grid-template-columns: repeat(10, minmax(var(--card-width), 1fr));
-  gap: clamp(7px, 1vw, 14px);
+  gap: var(--tableau-gap);
   align-items: start;
-  min-width: var(--tableau-min-width);
+  min-width: 0;
 }
 
 .tableau-column {
+  min-width: 0;
   min-height: calc(var(--card-height) + 340px);
   border: 1px solid transparent;
   border-radius: 8px;
@@ -628,10 +647,6 @@ button {
 }
 
 @media (max-width: 1180px) {
-  body {
-    min-width: 820px;
-  }
-
   .app-toolbar {
     grid-template-columns: 1fr;
   }
@@ -639,9 +654,31 @@ button {
   .utility-actions {
     justify-content: flex-start;
   }
+}
 
-  .tableau {
-    min-width: var(--tableau-compact-min-width);
+@media (max-width: 820px) {
+  :root {
+    --card-readable-min-width: 36px;
+    --tableau-gap: clamp(4px, 0.75vw, 7px);
+    --play-surface-inline-padding: 8px;
+  }
+
+  .score-strip {
+    grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+  }
+
+  .metric {
+    padding: 8px 10px;
+  }
+
+  .play-surface {
+    grid-template-columns: minmax(86px, calc(var(--card-width) * 1.7)) minmax(0, 1fr);
+  }
+
+  .stock {
+    grid-template-columns: 1fr;
+    place-items: center;
+    text-align: center;
   }
 }
 

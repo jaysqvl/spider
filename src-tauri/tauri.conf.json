@@ -16,7 +16,7 @@
         "title": "Spider",
         "width": 1280,
         "height": 860,
-        "minWidth": 960,
+        "minWidth": 760,
         "minHeight": 680,
         "resizable": true
       }

@@ -48,11 +48,7 @@ import {
 import "./styles/app.css";
 
 const DRAG_THRESHOLD_PX = 6;
-const BASE_CARD_MIN_WIDTH = 58;
-const BASE_CARD_FLUID_WIDTH = 7;
 const BASE_CARD_MAX_WIDTH = 92;
-const BASE_TABLEAU_MIN_WIDTH = 920;
-const BASE_TABLEAU_COMPACT_MIN_WIDTH = 780;
 const BASE_STOCK_DECK_WIDTH = 54;
 const BASE_STOCK_DECK_HEIGHT = 72;
 const BASE_STOCK_MIN_HEIGHT = 76;
@@ -136,7 +132,7 @@ export default function App() {
       const effectiveTheme = settings.theme === "system" ? (media?.matches ? "dark" : "light") : settings.theme;
       root.dataset.theme = effectiveTheme;
       root.dataset.motion = settings.reducedMotion ? "reduced" : "full";
-      applyGameScale(root, settings.gameScale);
+      applyGameScale(root, settings);
     };
 
     applyTheme();
@@ -145,7 +141,7 @@ export default function App() {
     return () => {
       media?.removeEventListener("change", applyTheme);
     };
-  }, [settings.gameScale, settings.reducedMotion, settings.theme]);
+  }, [settings]);
 
   useEffect(() => {
     let lastTick = Date.now();
@@ -777,6 +773,20 @@ export default function App() {
             <label className="toggle-row">
               <input
                 type="checkbox"
+                checked={settings.gameScaleMode === "auto"}
+                onChange={(event) => {
+                  void updateSettings({
+                    ...settings,
+                    gameScaleMode: event.target.checked ? "auto" : "manual"
+                  });
+                }}
+              />
+              <span>Auto fit to window</span>
+            </label>
+
+            <label className="toggle-row">
+              <input
+                type="checkbox"
                 checked={settings.reducedMotion}
                 onChange={(event) => {
                   void updateSettings({ ...settings, reducedMotion: event.target.checked });
@@ -839,15 +849,13 @@ export default function App() {
   );
 }
 
-function applyGameScale(root: HTMLElement, gameScale: number): void {
-  const scale = (gameScale / 100) * DEFAULT_VISUAL_SCALE_MULTIPLIER;
+function applyGameScale(root: HTMLElement, settings: Settings): void {
+  const scale = (settings.gameScale / 100) * DEFAULT_VISUAL_SCALE_MULTIPLIER;
 
-  root.dataset.gameScale = String(gameScale);
-  root.style.setProperty("--card-min-width", `${BASE_CARD_MIN_WIDTH * scale}px`);
-  root.style.setProperty("--card-fluid-width", `${BASE_CARD_FLUID_WIDTH * scale}vw`);
+  root.dataset.gameScale = String(settings.gameScale);
+  root.dataset.gameScaleMode = settings.gameScaleMode;
+  root.style.setProperty("--card-preferred-width", `${BASE_CARD_MAX_WIDTH * scale}px`);
   root.style.setProperty("--card-max-width", `${BASE_CARD_MAX_WIDTH * scale}px`);
-  root.style.setProperty("--tableau-min-width", `${BASE_TABLEAU_MIN_WIDTH * scale}px`);
-  root.style.setProperty("--tableau-compact-min-width", `${BASE_TABLEAU_COMPACT_MIN_WIDTH * scale}px`);
   root.style.setProperty("--stock-deck-width", `${BASE_STOCK_DECK_WIDTH * scale}px`);
   root.style.setProperty("--stock-deck-height", `${BASE_STOCK_DECK_HEIGHT * scale}px`);
   root.style.setProperty("--stock-min-height", `${BASE_STOCK_MIN_HEIGHT * scale}px`);

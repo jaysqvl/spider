@@ -2,12 +2,14 @@ import type { Difficulty, GameState } from "../game/types";
 
 export type ThemePreference = "system" | "light" | "dark";
 export type CardBack = "spruce" | "midnight" | "ember";
+export type GameScaleMode = "auto" | "manual";
 
 export interface Settings {
   theme: ThemePreference;
   difficulty: Difficulty;
   cardBack: CardBack;
   gameScale: number;
+  gameScaleMode: GameScaleMode;
   reducedMotion: boolean;
 }
 
@@ -65,6 +67,7 @@ export const DEFAULT_SETTINGS: Settings = {
   difficulty: "one-suit",
   cardBack: "spruce",
   gameScale: GAME_SCALE.default,
+  gameScaleMode: "auto",
   reducedMotion: false
 };
 

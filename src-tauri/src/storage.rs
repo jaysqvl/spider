@@ -14,6 +14,7 @@ const GAME_SCALE_MIN: i64 = 70;
 const GAME_SCALE_MAX: i64 = 100;
 const GAME_SCALE_STEP: i64 = 5;
 const GAME_SCALE_DEFAULT: i64 = 100;
+const GAME_SCALE_MODE_DEFAULT: &str = "auto";
 
 pub struct StorageState {
     conn: Mutex<Connection>,
@@ -38,6 +39,8 @@ pub struct SettingsPayload {
     pub card_back: String,
     #[serde(default = "default_game_scale")]
     pub game_scale: i64,
+    #[serde(default = "default_game_scale_mode")]
+    pub game_scale_mode: String,
     pub reduced_motion: bool,
 }
 
@@ -494,6 +497,7 @@ fn default_settings() -> SettingsPayload {
         "difficulty": "one-suit",
         "cardBack": "spruce",
         "gameScale": GAME_SCALE_DEFAULT,
+        "gameScaleMode": GAME_SCALE_MODE_DEFAULT,
         "reducedMotion": false
     }))
     .expect("default settings are valid")
@@ -502,6 +506,7 @@ fn default_settings() -> SettingsPayload {
 fn normalize_settings(settings: SettingsPayload) -> SettingsPayload {
     SettingsPayload {
         game_scale: normalize_game_scale(settings.game_scale),
+        game_scale_mode: normalize_game_scale_mode(&settings.game_scale_mode).to_string(),
         ..settings
     }
 }
@@ -514,6 +519,18 @@ fn normalize_game_scale(value: i64) -> i64 {
 
 fn default_game_scale() -> i64 {
     GAME_SCALE_DEFAULT
+}
+
+fn default_game_scale_mode() -> String {
+    GAME_SCALE_MODE_DEFAULT.to_string()
+}
+
+fn normalize_game_scale_mode(value: &str) -> &str {
+    if value == "auto" || value == "manual" {
+        value
+    } else {
+        GAME_SCALE_MODE_DEFAULT
+    }
 }
 
 fn take_recovery_message(state: &StorageState) -> Result<Option<String>, String> {
@@ -566,20 +583,23 @@ mod tests {
         .expect("legacy settings should deserialize");
 
         assert_eq!(settings.game_scale, 100);
+        assert_eq!(settings.game_scale_mode, "auto");
     }
 
     #[test]
-    fn settings_keep_saved_game_scale() {
+    fn settings_keep_saved_game_scale_and_mode() {
         let settings: SettingsPayload = serde_json::from_value(json!({
             "theme": "dark",
             "difficulty": "one-suit",
             "cardBack": "spruce",
             "gameScale": 85,
+            "gameScaleMode": "manual",
             "reducedMotion": true
         }))
         .expect("settings should deserialize");
 
         assert_eq!(settings.game_scale, 85);
+        assert_eq!(settings.game_scale_mode, "manual");
     }
 
     #[test]
@@ -590,6 +610,7 @@ mod tests {
                 "difficulty": "one-suit",
                 "cardBack": "spruce",
                 "gameScale": 999,
+                "gameScaleMode": "auto",
                 "reducedMotion": true
             }))
             .expect("settings should deserialize"),
@@ -606,11 +627,29 @@ mod tests {
                 "difficulty": "one-suit",
                 "cardBack": "spruce",
                 "gameScale": 120,
+                "gameScaleMode": "auto",
                 "reducedMotion": true
             }))
             .expect("settings should deserialize"),
         );
 
         assert_eq!(settings.game_scale, 100);
+    }
+
+    #[test]
+    fn settings_normalize_invalid_game_scale_mode() {
+        let settings = normalize_settings(
+            serde_json::from_value(json!({
+                "theme": "dark",
+                "difficulty": "one-suit",
+                "cardBack": "spruce",
+                "gameScale": 90,
+                "gameScaleMode": "huge",
+                "reducedMotion": true
+            }))
+            .expect("settings should deserialize"),
+        );
+
+        assert_eq!(settings.game_scale_mode, "auto");
     }
 }
