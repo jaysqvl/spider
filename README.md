@@ -73,19 +73,34 @@ Downloadable builds are published from GitHub Releases:
 
 Release tags use semantic versioning with a leading `v`, for example `v0.1.0`. The tag version must match `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`.
 
+Updater-capable releases require `TAURI_SIGNING_PRIVATE_KEY` in GitHub Actions secrets. Without it, the workflow fails instead of publishing an installer that cannot update. The public updater key is committed in `src-tauri/tauri.conf.json`; the matching private key must stay secret.
+
+For this app, the generated private key is stored locally at:
+
+```bash
+/home/code/.tauri/spider.key
+```
+
+After authenticating GitHub CLI, set it with:
+
+```bash
+gh secret set TAURI_SIGNING_PRIVATE_KEY < /home/code/.tauri/spider.key
+```
+
+If this repository or its releases are private, set `TAURI_UPDATER_ENDPOINT` to a public HTTPS URL that serves Tauri's `latest.json`; unauthenticated installed apps cannot poll private GitHub Release assets.
+
 `.github/workflows/release.yml` builds:
 
 - Windows x64 NSIS artifacts on `windows-latest`.
 - macOS Apple Silicon artifacts on `macos-14`.
 - macOS Intel artifacts on `macos-13`.
-- SHA-256 checksum files for release assets.
+- Signed updater artifacts and `latest.json`.
 - A published GitHub Release on semver tags or manual dispatch.
 
-Unsigned builds remain possible by default.
+Windows and macOS code-signing certificates are optional for early test builds, but Tauri updater signing is required for releases.
 
 Optional release secrets:
 
-- `TAURI_UPDATER_PUBKEY`
 - `TAURI_SIGNING_PRIVATE_KEY`
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
 - `APPLE_CERTIFICATE`
