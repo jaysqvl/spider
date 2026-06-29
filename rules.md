@@ -69,6 +69,7 @@ This repository is a portfolio-quality desktop game project. Keep it easy to rev
 - Do not mix unrelated refactors with feature work.
 - Update documentation when behavior, setup, release, or architecture changes.
 - Before opening a PR or publishing a release, run the full available verification suite and call out any unavailable local checks.
+- External GitHub Actions in workflow files must be pinned to full 40-character commit SHAs; `npm run verify:workflows` must pass.
 
 ## Release Rules
 
