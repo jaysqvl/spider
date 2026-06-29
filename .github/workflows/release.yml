@@ -8,7 +8,7 @@ on:
         required: false
   push:
     tags:
-      - "v*"
+      - "v*.*.*"
 
 permissions:
   contents: write
@@ -17,8 +17,57 @@ env:
   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 jobs:
+  validate:
+    name: Validate semver release
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Resolve and validate release version
+        id: version
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "$REQUESTED_VERSION" ]]; then
+            tag="$REQUESTED_VERSION"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            tag="v$(node -p "require('./package.json').version")"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Release tag must be semver with a leading v, for example v1.2.3 or v1.2.3-beta.1."
+            exit 1
+          fi
+
+          version="${tag#v}"
+          package_version="$(node -p "require('./package.json').version")"
+          tauri_version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          cargo_version="$(sed -n 's/^version = \"\\(.*\\)\"/\\1/p' src-tauri/Cargo.toml | head -n 1)"
+
+          if [[ "$package_version" != "$version" || "$tauri_version" != "$version" || "$cargo_version" != "$version" ]]; then
+            echo "::error::Version mismatch. tag=$tag package.json=$package_version tauri.conf.json=$tauri_version Cargo.toml=$cargo_version"
+            exit 1
+          fi
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
   build:
     name: Build ${{ matrix.name }}
+    needs: validate
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -26,7 +75,7 @@ jobs:
         include:
           - name: windows-x64
             os: windows-latest
-            rust_target: ""
+            rust_target: x86_64-pc-windows-msvc
             args: ""
           - name: macos-apple-silicon
             os: macos-14
@@ -126,9 +175,11 @@ jobs:
           if-no-files-found: error
 
   publish:
-    name: Publish draft GitHub Release
+    name: Publish GitHub Release
     runs-on: ubuntu-latest
-    needs: build
+    needs:
+      - validate
+      - build
 
     steps:
       - name: Checkout
@@ -144,26 +195,45 @@ jobs:
         with:
           path: release-artifacts
 
-      - name: Resolve release tag
-        id: tag
-        shell: bash
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.version }}" ]]; then
-            echo "value=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "value=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Create draft release
+      - name: Publish release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ steps.tag.outputs.value }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
         shell: bash
         run: |
-          mapfile -t assets < <(find release-artifacts -type f | sort)
-          gh release create "$RELEASE_TAG" "${assets[@]}" \
-            --draft \
-            --title "Spider ${RELEASE_TAG}" \
-            --notes "Draft desktop release for Spider. Assets include Windows x64, macOS Apple Silicon, macOS Intel, and SHA-256 checksum files."
+          mapfile -t assets < <(find release-artifacts -type f \( \
+            -name "*.dmg" -o \
+            -name "*.exe" -o \
+            -name "*.msi" -o \
+            -name "*.AppImage" -o \
+            -name "*.deb" -o \
+            -name "*.rpm" -o \
+            -name "*.tar.gz" -o \
+            -name "*.zip" -o \
+            -name "*.sig" -o \
+            -name "latest.json" -o \
+            -name "SHA256SUMS-*.txt" \
+          \) | sort)
+
+          if [[ "${#assets[@]}" -eq 0 ]]; then
+            echo "::error::No release assets were found."
+            exit 1
+          fi
+
+          release_flags=(
+            --verify-tag
+            --title "Spider ${RELEASE_TAG}"
+            --notes "Desktop release for Spider. Assets include Windows x64, macOS Apple Silicon, macOS Intel, and SHA-256 checksum files."
+          )
+
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            release_flags+=(--prerelease)
+          else
+            release_flags+=(--latest)
+          fi
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+          else
+            gh release create "$RELEASE_TAG" "${assets[@]}" "${release_flags[@]}"
+          fi
