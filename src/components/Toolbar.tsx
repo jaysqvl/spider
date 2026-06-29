@@ -92,13 +92,16 @@ export function Toolbar({
         />
       </div>
 
-      <div className="utility-actions" aria-label="Application actions">
-        {canInstallUpdate ? (
-          <IconButton icon={<Download size={18} />} label="Install Update" compact onClick={onInstallUpdate} />
-        ) : null}
-        <IconButton icon={<Settings size={18} />} label="Settings" compact onClick={onSettings} />
-        <IconButton icon={<BarChart3 size={18} />} label="Stats" compact onClick={onStats} />
-        <IconButton icon={<Info size={18} />} label="About" compact onClick={onAbout} />
+      <div className="utility-dock" aria-label="Application actions">
+        <span className="utility-dock__handle" aria-hidden="true" />
+        <div className="utility-actions">
+          {canInstallUpdate ? (
+            <IconButton icon={<Download size={18} />} label="Install Update" compact onClick={onInstallUpdate} />
+          ) : null}
+          <IconButton icon={<Settings size={18} />} label="Settings" compact onClick={onSettings} />
+          <IconButton icon={<BarChart3 size={18} />} label="Stats" compact onClick={onStats} />
+          <IconButton icon={<Info size={18} />} label="About" compact onClick={onAbout} />
+        </div>
       </div>
     </header>
   );

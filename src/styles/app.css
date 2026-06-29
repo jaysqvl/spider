@@ -151,47 +151,52 @@ button {
   justify-content: flex-end;
   min-width: 0;
   flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none;
+  overflow: visible;
 }
 
-.toolbar-actions::-webkit-scrollbar {
-  display: none;
-}
-
-.utility-actions {
-  position: fixed;
+.utility-dock {
+  position: absolute;
   top: 0;
   right: 12px;
   z-index: 60;
+  width: 176px;
+  height: 18px;
+}
+
+.utility-dock__handle {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 50%, transparent);
+}
+
+.utility-actions {
+  position: absolute;
+  top: 100%;
+  right: 0;
   justify-content: flex-end;
   padding: 7px 8px 8px;
   border: 1px solid var(--line);
-  border-top: 0;
-  border-radius: 0 0 8px 8px;
+  border-radius: 8px;
   background: color-mix(in srgb, var(--surface) 94%, transparent);
   box-shadow: 0 10px 26px rgba(26, 34, 30, 0.14);
-  opacity: 0.86;
-  transform: translateY(calc(-100% + 9px));
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-6px);
   transition:
     opacity 160ms ease,
     transform 160ms ease;
 }
 
-.utility-actions::after {
-  content: "";
-  position: absolute;
-  right: 12px;
-  bottom: 3px;
-  width: 34px;
-  height: 3px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--muted) 50%, transparent);
-}
-
-.utility-actions:hover,
-.utility-actions:focus-within {
+.app-toolbar:hover .utility-actions,
+.app-toolbar:focus-within .utility-actions,
+.utility-dock:hover .utility-actions,
+.utility-dock:focus-within .utility-actions {
   opacity: 1;
+  pointer-events: auto;
   transform: translateY(0);
 }
 

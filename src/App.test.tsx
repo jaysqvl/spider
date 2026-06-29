@@ -85,6 +85,7 @@ describe("App", () => {
     expect(newGame).toHaveAttribute("title", "New Game");
     expect(newGame).toHaveTextContent("New Game");
     expect(screen.getByLabelText("Application actions")).toBeInTheDocument();
+    expect(screen.getByLabelText("Application actions")).toHaveClass("utility-dock");
   });
 
   it("explains that browser previews cannot install desktop updates", async () => {
