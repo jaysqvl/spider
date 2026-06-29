@@ -4,6 +4,7 @@ import { join } from "node:path";
 const workflowDir = new URL("../.github/workflows/", import.meta.url);
 const fullShaActionRef = /^[^@\s]+@[a-f0-9]{40}$/i;
 const releaseWorkflow = new URL("release.yml", workflowDir);
+const devReleaseWorkflow = new URL("dev-release.yml", workflowDir);
 
 const files = (await readdir(workflowDir))
   .filter((file) => file.endsWith(".yml") || file.endsWith(".yaml"))
@@ -75,3 +76,39 @@ if (releaseAssetFailures.length > 0) {
 
 console.log(`Verified pinned workflow actions in ${files.length} workflow file(s).`);
 console.log("Verified user-facing release asset names.");
+
+const devReleaseContent = await readFile(devReleaseWorkflow, "utf8");
+const devReleaseExpectations = [
+  {
+    label: "dev updater endpoint",
+    pattern: "releases/download/dev-latest/latest.json"
+  },
+  {
+    label: "dev release tag",
+    pattern: "tagName: dev-latest"
+  },
+  {
+    label: "dev Windows x64",
+    pattern: 'asset_name_pattern: "Spider_Dev_[version]_windows-x64_[bundle][ext]"'
+  },
+  {
+    label: "dev macOS Apple Silicon arm64",
+    pattern:
+      'asset_name_pattern: "Spider_Dev_[version]_macos-apple-silicon-arm64_[bundle][ext]"'
+  }
+];
+const devReleaseFailures = devReleaseExpectations
+  .filter(({ pattern }) => !devReleaseContent.includes(pattern))
+  .map(({ label, pattern }) => `${label} release expectation is missing: ${pattern}`);
+
+if (devReleaseContent.includes("macos-13") || devReleaseContent.includes("macos-intel")) {
+  devReleaseFailures.push("dev release workflow should not depend on the slower macOS Intel runner");
+}
+
+if (devReleaseFailures.length > 0) {
+  console.error("Dev release workflow must stay on the separate fast test channel:");
+  devReleaseFailures.forEach((failure) => console.error(`- ${failure}`));
+  process.exit(1);
+}
+
+console.log("Verified dev release channel configuration.");

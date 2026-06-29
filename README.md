@@ -56,6 +56,7 @@ src-tauri/
   capabilities/     Tauri command permissions
 .github/workflows/
   ci.yml
+  dev-release.yml
   release.yml
 ```
 
@@ -74,6 +75,8 @@ Release tags use semantic versioning with a leading `v`, for example `v0.1.0`. T
 Updater-capable releases require `TAURI_SIGNING_PRIVATE_KEY` in GitHub Actions secrets. Without it, the workflow fails instead of publishing an installer that cannot update. The public updater key is committed in `src-tauri/tauri.conf.json`; the matching private key must stay secret.
 
 Installed desktop builds check for updates on launch, install available signed updates silently, and restart into the new version. Browser previews do not check or install releases.
+
+Stable builds update from GitHub's latest stable release feed. Development builds use a separate `Spider Dev` app identity, local-data directory, and updater feed at the `dev-latest` prerelease, so test builds do not get pushed to stable installs.
 
 For this app, the generated private key is stored locally at:
 
@@ -98,6 +101,8 @@ If this repository or its releases are private, set `TAURI_UPDATER_ENDPOINT` to 
 - A published GitHub Release on semver tags or manual dispatch.
 
 Windows and macOS code-signing certificates are optional for early test builds, but Tauri updater signing is required for releases.
+
+`.github/workflows/dev-release.yml` publishes a fast `dev-latest` prerelease on pushes to `main` and manual dispatches. It builds Apple Silicon macOS and Windows x64 installers, rewrites the CI workspace to a prerelease version such as `0.1.7-dev.123.1`, and points `Spider Dev` at `https://github.com/jaysqvl/spider/releases/download/dev-latest/latest.json` for automatic dev-channel updates. It intentionally skips the slower macOS Intel runner so local testing artifacts appear quickly.
 
 Optional release secrets:
 

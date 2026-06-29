@@ -1,0 +1,205 @@
+name: Dev Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dev-release
+  cancel-in-progress: true
+
+env:
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+  TAURI_UPDATER_ENDPOINT: https://github.com/${{ github.repository }}/releases/download/dev-latest/latest.json
+
+jobs:
+  prepare:
+    name: Prepare dev channel
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: lts/*
+
+      - name: Verify workflow action pins
+        run: npm run verify:workflows
+
+      - name: Resolve dev version
+        id: version
+        run: |
+          version="$(node scripts/prepare-dev-release.mjs --print-version)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Reset dev-latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete dev-latest --yes --cleanup-tag || true
+          git push origin :refs/tags/dev-latest || true
+
+  build:
+    name: Build and publish ${{ matrix.name }}
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-latest
+            rust_targets: ""
+            args: ""
+            asset_name_pattern: "Spider_Dev_[version]_windows-x64_[bundle][ext]"
+          - name: macos-apple-silicon
+            os: macos-14
+            rust_targets: aarch64-apple-darwin
+            args: "--target aarch64-apple-darwin"
+            asset_name_pattern: "Spider_Dev_[version]_macos-apple-silicon-arm64_[bundle][ext]"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify workflow action pins
+        run: npm run verify:workflows
+
+      - name: Prepare dev release metadata
+        env:
+          DEV_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          TAURI_UPDATER_ENDPOINT: ${{ env.TAURI_UPDATER_ENDPOINT }}
+        run: node scripts/prepare-dev-release.mjs
+
+      - name: Rust locked dependency check
+        shell: bash
+        run: cargo metadata --manifest-path src-tauri/Cargo.toml --locked --format-version 1 > /dev/null
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Frontend tests
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Rust format
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+
+      - name: Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+
+      - name: Import Windows certificate
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE)) {
+            Write-Host "WINDOWS_CERTIFICATE not configured; building unsigned Windows artifacts."
+            exit 0
+          }
+          New-Item -ItemType Directory -Path certificate
+          Set-Content -Path certificate/tempCert.txt -Value $env:WINDOWS_CERTIFICATE
+          certutil -decode certificate/tempCert.txt certificate/certificate.pfx
+          Remove-Item certificate/tempCert.txt
+          Import-PfxCertificate -FilePath certificate/certificate.pfx -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText)
+
+      - name: Import Apple certificate
+        if: startsWith(matrix.name, 'macos')
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          if [ -z "$APPLE_CERTIFICATE" ]; then
+            echo "APPLE_CERTIFICATE not configured; using ad-hoc signing where supported."
+            exit 0
+          fi
+          echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          CERT_ID=$(security find-identity -v -p codesigning build.keychain | awk -F'"' '/Developer ID Application|Apple Distribution/ { print $2; exit }')
+          echo "APPLE_SIGNING_IDENTITY=$CERT_ID" >> "$GITHUB_ENV"
+          if [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+            echo "APPLE_ID=$APPLE_ID" >> "$GITHUB_ENV"
+            echo "APPLE_PASSWORD=$APPLE_PASSWORD" >> "$GITHUB_ENV"
+            echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> "$GITHUB_ENV"
+          fi
+
+      - name: Configure updater
+        env:
+          REQUIRE_TAURI_UPDATER: "true"
+          TAURI_UPDATER_ENDPOINT: ${{ env.TAURI_UPDATER_ENDPOINT }}
+          TAURI_UPDATER_PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: node scripts/configure-updater.mjs
+
+      - name: Build and publish dev release
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY || '-' }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: dev-latest
+          releaseName: Spider Dev ${{ needs.prepare.outputs.version }}
+          releaseBody: |
+            Development build for testing the next Spider patch.
+
+            This prerelease uses a separate app name, bundle identifier, local data directory, and update feed from stable Spider.
+
+            Downloads:
+            - macos-apple-silicon-arm64 DMG: Apple Silicon Macs, including M1, M2, M3, and M4.
+            - windows-x64 NSIS EXE: 64-bit Windows on Intel or AMD CPUs.
+
+            Files ending in .tar.gz, .sig, and latest.json support automatic updates for Spider Dev.
+          releaseDraft: false
+          prerelease: true
+          args: ${{ matrix.args }}
+          includeUpdaterJson: true
+          updaterJsonPreferNsis: true
+          assetNamePattern: ${{ matrix.asset_name_pattern }}
