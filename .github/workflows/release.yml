@@ -23,6 +23,7 @@ jobs:
     outputs:
       tag: ${{ steps.version.outputs.tag }}
       version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
 
     steps:
       - name: Checkout
@@ -64,9 +65,14 @@ jobs:
 
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$version" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
 
-  build:
-    name: Build ${{ matrix.name }}
+  release:
+    name: Build and publish ${{ matrix.name }}
     needs: validate
     runs-on: ${{ matrix.os }}
     strategy:
@@ -75,15 +81,15 @@ jobs:
         include:
           - name: windows-x64
             os: windows-latest
-            rust_target: x86_64-pc-windows-msvc
+            rust_targets: ""
             args: ""
           - name: macos-apple-silicon
             os: macos-14
-            rust_target: aarch64-apple-darwin
+            rust_targets: aarch64-apple-darwin
             args: "--target aarch64-apple-darwin"
           - name: macos-intel
             os: macos-13
-            rust_target: x86_64-apple-darwin
+            rust_targets: x86_64-apple-darwin
             args: "--target x86_64-apple-darwin"
 
     steps:
@@ -99,7 +105,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.rust_target }}
+          targets: ${{ matrix.rust_targets }}
 
       - name: Cache Rust
         uses: swatinem/rust-cache@v2
@@ -147,93 +153,31 @@ jobs:
           CERT_ID=$(security find-identity -v -p codesigning build.keychain | awk -F'"' '/Developer ID Application|Apple Distribution/ { print $2; exit }')
           echo "APPLE_SIGNING_IDENTITY=$CERT_ID" >> "$GITHUB_ENV"
 
-      - name: Configure updater artifacts
+      - name: Configure updater
         env:
-          TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          REQUIRE_TAURI_UPDATER: "true"
           TAURI_UPDATER_ENDPOINT: ${{ vars.TAURI_UPDATER_ENDPOINT }}
+          TAURI_UPDATER_PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: node scripts/configure-updater.mjs
 
-      - name: Build app
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v1
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npm run tauri build -- ${{ matrix.args }}
-
-      - name: Generate checksums
-        run: node scripts/checksums.mjs src-tauri/target/release/bundle src-tauri/target/release/bundle/SHA256SUMS-${{ matrix.name }}.txt
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
         with:
-          name: spider-${{ matrix.name }}
-          path: src-tauri/target/release/bundle/**
-          if-no-files-found: error
-
-  publish:
-    name: Publish GitHub Release
-    runs-on: ubuntu-latest
-    needs:
-      - validate
-      - build
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: release-artifacts
-
-      - name: Publish release assets
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
-        shell: bash
-        run: |
-          mapfile -t assets < <(find release-artifacts -type f \( \
-            -name "*.dmg" -o \
-            -name "*.exe" -o \
-            -name "*.msi" -o \
-            -name "*.AppImage" -o \
-            -name "*.deb" -o \
-            -name "*.rpm" -o \
-            -name "*.tar.gz" -o \
-            -name "*.zip" -o \
-            -name "*.sig" -o \
-            -name "latest.json" -o \
-            -name "SHA256SUMS-*.txt" \
-          \) | sort)
-
-          if [[ "${#assets[@]}" -eq 0 ]]; then
-            echo "::error::No release assets were found."
-            exit 1
-          fi
-
-          release_flags=(
-            --verify-tag
-            --title "Spider ${RELEASE_TAG}"
-            --notes "Desktop release for Spider. Assets include Windows x64, macOS Apple Silicon, macOS Intel, and SHA-256 checksum files."
-          )
-
-          if [[ "$RELEASE_TAG" == *-* ]]; then
-            release_flags+=(--prerelease)
-          else
-            release_flags+=(--latest)
-          fi
-
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
-          else
-            gh release create "$RELEASE_TAG" "${assets[@]}" "${release_flags[@]}"
-          fi
+          tagName: ${{ needs.validate.outputs.tag }}
+          releaseName: Spider ${{ needs.validate.outputs.tag }}
+          releaseBody: Desktop release for Spider. Download the Windows installer or macOS DMG from the assets below. Update metadata is published as latest.json.
+          releaseDraft: false
+          prerelease: ${{ needs.validate.outputs.prerelease }}
+          args: ${{ matrix.args }}
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true
+          releaseAssetNamePattern: "Spider_[version]_[platform]_[arch]_[bundle][ext]"
