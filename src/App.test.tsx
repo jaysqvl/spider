@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import App, { applyAutoFitScale } from "./App";
 import type { Card, GameState, Rank, Suit } from "./game/types";
 import { DEFAULT_SETTINGS } from "./persistence/types";
+import packageJson from "../package.json";
 
 describe("App", () => {
   beforeEach(() => {
@@ -164,13 +165,17 @@ describe("App", () => {
     expect(await screen.findByText(/installed Spider desktop app/)).toBeInTheDocument();
   });
 
-  it("shows the copyright notice in the about dialog", async () => {
+  it("shows clean version and copyright metadata in the about dialog", async () => {
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: "About" }));
 
+    expect(screen.getByText("A simple, low-clutter Spider Solitaire game for desktop play.")).toBeInTheDocument();
+    expect(screen.getByText("Version")).toBeInTheDocument();
+    expect(screen.getByText(packageJson.version)).toBeInTheDocument();
     expect(screen.getByText("Copyright 2026 Jay Esquivel.")).toBeInTheDocument();
+    expect(screen.queryByText(/independent Spider Solitaire app/)).not.toBeInTheDocument();
   });
 
   it("shows the whole selected run as a drag preview", async () => {

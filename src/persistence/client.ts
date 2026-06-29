@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import packageJson from "../../package.json";
 import { reviveGameState, serializeGameState } from "../game/engine";
 import type { Difficulty, GameState } from "../game/types";
 import {
@@ -33,7 +34,7 @@ export async function loadAppState(): Promise<LoadAppState> {
     activeGame: reviveGameState(readJson(ACTIVE_GAME_KEY)),
     stats: loadLocalStats(),
     recoveryMessage: null,
-    appVersion: "0.1.2-dev"
+    appVersion: packageJson.version
   }));
 }
 

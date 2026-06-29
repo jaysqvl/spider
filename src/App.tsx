@@ -46,6 +46,7 @@ import {
   type StatsRollup,
   type UpdateInfo
 } from "./persistence/types";
+import packageJson from "../package.json";
 import "./styles/app.css";
 
 const DRAG_THRESHOLD_PX = 6;
@@ -85,7 +86,7 @@ export default function App() {
   const [dragPreview, setDragPreview] = useState<DragPreviewState | null>(null);
   const [dealAnimationOrders, setDealAnimationOrders] = useState<Record<string, number>>({});
   const [message, setMessage] = useState("Ready.");
-  const [appVersion, setAppVersion] = useState("0.1.2");
+  const [appVersion, setAppVersion] = useState(packageJson.version);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isToolbarOpen, setIsToolbarOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -937,11 +938,19 @@ export default function App() {
       {modal === "about" ? (
         <Modal title="About" onClose={() => setModal(null)}>
           <div className="about-panel">
-            <p>
-              Spider {appVersion} is an independent Spider Solitaire app for desktop with local-only saves,
-              settings, and stats.
+            <p className="about-panel__summary">
+              A simple, low-clutter Spider Solitaire game for desktop play.
             </p>
-            <p>Copyright 2026 Jay Esquivel.</p>
+            <dl className="about-panel__meta">
+              <div>
+                <dt>Version</dt>
+                <dd>{appVersion}</dd>
+              </div>
+              <div>
+                <dt>Copyright</dt>
+                <dd>Copyright 2026 Jay Esquivel.</dd>
+              </div>
+            </dl>
           </div>
         </Modal>
       ) : null}

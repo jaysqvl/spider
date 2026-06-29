@@ -721,7 +721,36 @@ button {
 
 .about-panel {
   display: grid;
-  gap: 10px;
+  gap: 16px;
+}
+
+.about-panel__summary {
+  color: var(--text);
+}
+
+.about-panel__meta {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.about-panel__meta div {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.about-panel__meta dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.about-panel__meta dd {
+  margin: 0;
+  font-weight: 700;
 }
 
 .reset-panel {
