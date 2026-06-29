@@ -73,5 +73,6 @@ This repository is a portfolio-quality desktop game project. Keep it easy to rev
 - Keep `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` versions in sync.
 - Publish releases from annotated tags named `vMAJOR.MINOR.PATCH`, for example `v0.1.0`.
 - Do not claim a release exists until the tag has been pushed and GitHub Actions has produced downloadable artifacts.
+- After each release workflow run, verify the published release with `gh release view` and confirm installer assets are present before calling the release complete.
 - Release workflows must produce downloadable installers, signed updater artifacts, and `latest.json`; source-code archives alone do not count as a shipped app release.
 - Do not publish a first installable release without updater configuration compiled in. The app needs a committed public updater key and the matching `TAURI_SIGNING_PRIVATE_KEY` GitHub secret.
