@@ -5,6 +5,7 @@ coverage/
 .vite/
 *.tsbuildinfo
 *.local
+*.key
 
 src-tauri/target/
 src-tauri/gen/
