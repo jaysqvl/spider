@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-ssr/
+coverage/
+.vite/
+*.tsbuildinfo
+*.local
+
+src-tauri/target/
+src-tauri/gen/
+src-tauri/.tauri/
+
+.DS_Store
+Thumbs.db
