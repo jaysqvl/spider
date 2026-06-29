@@ -11,7 +11,7 @@ This project is not affiliated with Microsoft and does not use Microsoft brandin
 - Deterministic seeds for reproducible deals.
 - Local-only saved game, settings, and statistics.
 - Tauri desktop packaging for Windows and macOS.
-- GitHub Actions CI and draft release automation.
+- GitHub Actions CI and semver release automation.
 
 ## Development Setup
 
@@ -67,13 +67,19 @@ All user data is local-only. The Tauri shell creates `spider.sqlite3` inside the
 
 ## Release Automation
 
+Downloadable builds are published from GitHub Releases:
+
+<https://github.com/jaysqvl/spider/releases>
+
+Release tags use semantic versioning with a leading `v`, for example `v0.1.0`. The tag version must match `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`.
+
 `.github/workflows/release.yml` builds:
 
 - Windows x64 NSIS artifacts on `windows-latest`.
 - macOS Apple Silicon artifacts on `macos-14`.
 - macOS Intel artifacts on `macos-13`.
 - SHA-256 checksum files for release assets.
-- A draft GitHub Release on `v*` tags or manual dispatch.
+- A published GitHub Release on semver tags or manual dispatch.
 
 Unsigned builds remain possible by default.
 

@@ -64,3 +64,10 @@ This repository is a portfolio-quality desktop game project. Keep it easy to rev
 - Do not mix unrelated refactors with feature work.
 - Update documentation when behavior, setup, release, or architecture changes.
 - Before opening a PR or publishing a release, run the full available verification suite and call out any unavailable local checks.
+
+## Release Rules
+
+- Use semantic versioning for shipped versions.
+- Keep `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` versions in sync.
+- Publish releases from annotated tags named `vMAJOR.MINOR.PATCH`, for example `v0.1.0`.
+- Do not claim a release exists until the tag has been pushed and GitHub Actions has produced downloadable artifacts.
