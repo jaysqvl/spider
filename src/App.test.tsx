@@ -74,16 +74,17 @@ describe("App", () => {
     expect(screen.queryByRole("dialog", { name: "About" })).not.toBeInTheDocument();
   });
 
-  it("keeps toolbar commands compact while preserving accessible names", async () => {
+  it("keeps primary toolbar commands labeled for readability", async () => {
     render(<App />);
 
     const newGame = await screen.findByRole("button", { name: "New Game" });
     const restart = screen.getByRole("button", { name: "Restart" });
 
-    expect(newGame).toHaveClass("icon-button--compact");
-    expect(restart).toHaveClass("icon-button--compact");
+    expect(newGame).not.toHaveClass("icon-button--compact");
+    expect(restart).not.toHaveClass("icon-button--compact");
     expect(newGame).toHaveAttribute("title", "New Game");
-    expect(newGame).not.toHaveTextContent("New Game");
+    expect(newGame).toHaveTextContent("New Game");
+    expect(screen.getByLabelText("Application actions")).toBeInTheDocument();
   });
 
   it("explains that browser previews cannot install desktop updates", async () => {

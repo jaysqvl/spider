@@ -69,27 +69,24 @@ export function Toolbar({
             ))}
           </select>
         </label>
-        <IconButton icon={<Play size={18} />} label="New Game" compact onClick={onNewGame} />
-        <IconButton icon={<RotateCcw size={18} />} label="Restart" compact onClick={onRestart} />
+        <IconButton icon={<Play size={18} />} label="New Game" onClick={onNewGame} />
+        <IconButton icon={<RotateCcw size={18} />} label="Restart" onClick={onRestart} />
         <IconButton
           icon={<Undo2 size={18} />}
           label="Undo"
-          compact
           onClick={onUndo}
           disabled={game.undoStack.length === 0}
         />
         <IconButton
           icon={<Redo2 size={18} />}
           label="Redo"
-          compact
           onClick={onRedo}
           disabled={game.redoStack.length === 0}
         />
-        <IconButton icon={<Lightbulb size={18} />} label="Hint" compact onClick={onHint} />
+        <IconButton icon={<Lightbulb size={18} />} label="Hint" onClick={onHint} />
         <IconButton
           icon={<CircleHelp size={18} />}
           label="Deal"
-          compact
           onClick={onDeal}
           disabled={game.stock.length === 0}
         />
