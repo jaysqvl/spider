@@ -86,14 +86,17 @@ jobs:
             os: windows-latest
             rust_targets: ""
             args: ""
+            asset_name_pattern: "Spider_[version]_windows-x64_[bundle][ext]"
           - name: macos-apple-silicon
             os: macos-14
             rust_targets: aarch64-apple-darwin
             args: "--target aarch64-apple-darwin"
+            asset_name_pattern: "Spider_[version]_macos-apple-silicon-arm64_[bundle][ext]"
           - name: macos-intel
             os: macos-13
             rust_targets: x86_64-apple-darwin
             args: "--target x86_64-apple-darwin"
+            asset_name_pattern: "Spider_[version]_macos-intel-x64_[bundle][ext]"
 
     steps:
       - name: Checkout
@@ -189,10 +192,18 @@ jobs:
         with:
           tagName: ${{ needs.validate.outputs.tag }}
           releaseName: Spider ${{ needs.validate.outputs.tag }}
-          releaseBody: Desktop release for Spider. Download the Windows installer or macOS DMG from the assets below. Update metadata is published as latest.json.
+          releaseBody: |
+            Desktop release for Spider.
+
+            Downloads:
+            - macos-apple-silicon-arm64 DMG: Apple Silicon Macs, including M1, M2, M3, and M4.
+            - macos-intel-x64 DMG: Intel Macs.
+            - windows-x64 NSIS EXE: 64-bit Windows on Intel or AMD CPUs.
+
+            Files ending in .tar.gz, .sig, and latest.json support automatic updates.
           releaseDraft: false
           prerelease: ${{ needs.validate.outputs.prerelease }}
           args: ${{ matrix.args }}
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
-          assetNamePattern: "Spider_[version]_[platform]_[arch]_[bundle][ext]"
+          assetNamePattern: ${{ matrix.asset_name_pattern }}
