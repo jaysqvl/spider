@@ -53,6 +53,8 @@ describe("prepare dev release", () => {
     const cargoToml = '[package]\nname = "spider"\nversion = "0.1.6"\n\n[dependencies]\nserde = "1"\n';
     const cargoLock =
       '[[package]]\nname = "serde"\nversion = "1.0.0"\n\n[[package]]\nname = "spider"\nversion = "0.1.6"\n';
+    const windowsCargoLock =
+      '[[package]]\r\nname = "serde"\r\nversion = "1.0.0"\r\n\r\n[[package]]\r\nname = "spider"\r\nversion = "0.1.6"\r\n';
 
     expect(replaceCargoPackageVersion(cargoToml, "0.1.7-dev.99")).toContain(
       'version = "0.1.7-dev.99"'
@@ -62,6 +64,9 @@ describe("prepare dev release", () => {
     );
     expect(replaceCargoLockPackageVersion(cargoLock, "0.1.7-dev.99")).toContain(
       'name = "serde"\nversion = "1.0.0"'
+    );
+    expect(replaceCargoLockPackageVersion(windowsCargoLock, "0.1.7-dev.99")).toContain(
+      'name = "spider"\r\nversion = "0.1.7-dev.99"'
     );
   });
 

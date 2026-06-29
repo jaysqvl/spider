@@ -78,7 +78,7 @@ export function replaceCargoPackageVersion(content, version) {
 
 export function replaceCargoLockPackageVersion(content, version) {
   return content.replace(
-    /(\[\[package\]\]\nname = "spider"\nversion = )"([^"]+)"/,
+    /(\[\[package\]\]\r?\nname = "spider"\r?\nversion = )"([^"]+)"/,
     `$1"${version}"`
   );
 }
