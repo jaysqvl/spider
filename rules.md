@@ -1,0 +1,66 @@
+# Spider Development Rules
+
+This repository is a portfolio-quality desktop game project. Keep it easy to review, easy to test, and consistent with `PLANNING.md`.
+
+## Product Boundaries
+
+- Build Spider Solitaire only.
+- Do not add a general solitaire shell, unrelated card games, accounts, telemetry, ads, online leaderboards, or cloud sync.
+- Keep all card art, UI, naming, sound, and branding original. Do not copy Microsoft assets or exact visual treatments.
+- Preserve the app identity:
+  - Product name: `Spider`
+  - Bundle identifier: `com.jaysqvl.spider`
+  - Package manager: npm
+  - Desktop shell: Tauri 2
+  - Frontend: React, TypeScript, Vite
+
+## Architecture Rules
+
+- `src/game` is the pure TypeScript engine. It must not import React, browser APIs, Tauri APIs, filesystem APIs, or persistence clients.
+- `src/persistence` owns the frontend persistence boundary and talks to Tauri commands. Browser-only fallbacks are acceptable for development preview, but SQLite through Tauri is the product path.
+- `src/components` contains reusable UI components. Keep them focused and presentational unless local interaction state makes the component clearer.
+- `src/styles` contains global styling and design tokens.
+- `src-tauri` owns OS integration, SQLite storage, migrations, updater checks, packaging, and native commands.
+- Display settings such as theme, card back, reduced motion, and game scale must remain persisted settings with UI coverage.
+- Game scale must flow through CSS variables and shared settings types; do not duplicate hardcoded card or tableau dimensions in feature code.
+- Prefer small, named functions over hidden behavior in large event handlers.
+- Add abstractions only when they remove real duplication or clarify a boundary.
+
+## Game Invariants
+
+- Every game uses exactly 104 physical cards with stable card IDs.
+- Difficulty controls suit composition only:
+  - 1 suit: 8 copies per rank in one suit.
+  - 2 suits: 4 copies per rank in two suits.
+  - 4 suits: 2 copies per rank in four suits.
+- Initial tableau shape is always `[6, 6, 6, 6, 5, 5, 5, 5, 5, 5]`.
+- Only the top card of each initial tableau column starts face up.
+- Stock starts as 5 deals of 10 cards.
+- Stock dealing is blocked if any tableau column is empty.
+- Only face-up descending same-suit runs may move as a unit.
+- Tableau placement builds downward by rank; suit does not matter for placement.
+- Empty tableau columns accept any valid movable card or run.
+- Complete face-up same-suit King-to-Ace runs are removed automatically.
+- The game is won after 8 completed runs.
+- Difficulty plus seed must reproduce the same initial deal.
+
+## Testing Rules
+
+- Every change to game rules requires unit tests in `src/game`.
+- Tests should assert invariants and user-visible behavior, not implementation trivia.
+- Engine tests must run without DOM, Tauri, SQLite, or filesystem access.
+- UI tests should cover workflows that can regress: new game, moving cards, stock dealing, undo/redo, hints, settings, stats, and reset confirmation.
+- Persistence tests should cover save/load, migrations, corrupted database recovery, settings, stats, completed games, and reset behavior.
+- Do not mark a feature complete unless its core behavior can be verified by `npm test`, `npm run typecheck`, and `npm run lint` where the local toolchain permits it.
+
+## Commit And Review Rules
+
+- Use conventional commit messages, for example:
+  - `feat: scaffold Spider desktop app`
+  - `test: cover stock dealing invariants`
+  - `fix: prevent mixed-suit run moves`
+  - `docs: document release prerequisites`
+- Keep commits coherent and reviewable.
+- Do not mix unrelated refactors with feature work.
+- Update documentation when behavior, setup, release, or architecture changes.
+- Before opening a PR or publishing a release, run the full available verification suite and call out any unavailable local checks.
