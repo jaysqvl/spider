@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Spider app icon">
+  <defs>
+    <linearGradient id="felt" x1="140" y1="80" x2="884" y2="944" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#13785c"/>
+      <stop offset="1" stop-color="#073829"/>
+    </linearGradient>
+    <linearGradient id="card" x1="310" y1="174" x2="714" y2="850" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fffdf7"/>
+      <stop offset="1" stop-color="#efe3ca"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="30" stdDeviation="36" flood-color="#092b21" flood-opacity="0.38"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" rx="220" fill="url(#felt)"/>
+  <path d="M220 230c142 40 232 120 292 252 60-132 150-212 292-252" fill="none" stroke="#8bd8b7" stroke-width="34" stroke-linecap="round" opacity="0.4"/>
+  <path d="M220 794c142-40 232-120 292-252 60 132 150 212 292 252" fill="none" stroke="#8bd8b7" stroke-width="34" stroke-linecap="round" opacity="0.32"/>
+  <path d="M512 150v724M190 512h644" fill="none" stroke="#d5f4e8" stroke-width="24" stroke-linecap="round" opacity="0.22"/>
+
+  <g filter="url(#shadow)">
+    <rect x="318" y="164" width="388" height="696" rx="56" fill="url(#card)" stroke="#f7f0df" stroke-width="18"/>
+    <rect x="358" y="204" width="308" height="616" rx="34" fill="none" stroke="#0d6048" stroke-width="18" opacity="0.18"/>
+    <path d="M412 250c0-34 27-62 62-62h76c35 0 62 28 62 62s-27 62-62 62h-76c-35 0-62-28-62-62z" fill="#0d6048" opacity="0.16"/>
+    <path d="M412 774c0-34 27-62 62-62h76c35 0 62 28 62 62s-27 62-62 62h-76c-35 0-62-28-62-62z" fill="#0d6048" opacity="0.16"/>
+    <path d="M512 356c-74 0-134 60-134 134 0 110 134 198 134 198s134-88 134-198c0-74-60-134-134-134z" fill="#0d6048"/>
+    <circle cx="512" cy="496" r="76" fill="#f9f1de"/>
+    <path d="M512 430v132M446 496h132M470 450l84 92M554 450l-84 92" stroke="#0d6048" stroke-width="22" stroke-linecap="round"/>
+  </g>
+</svg>
