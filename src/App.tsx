@@ -15,14 +15,12 @@ import {
   findHint,
   moveCards,
   newGame,
-  rankLabel,
   redo,
   restartGame,
-  suitSymbol,
   undo
 } from "./game/engine";
 import { DIFFICULTIES, type Card, type CardMove, type Difficulty, type GameState } from "./game/types";
-import { CardView } from "./components/CardView";
+import { CardFace, CardView } from "./components/CardView";
 import { Modal } from "./components/Modal";
 import { Toolbar } from "./components/Toolbar";
 import {
@@ -1323,21 +1321,7 @@ function DragPreview({ cards, cardBack, x, y }: { cards: Card[]; cardBack: CardB
               `card--back-${cardBack}`
             ].join(" ")}
           >
-            {card.faceUp ? (
-              <>
-                <span className="card__corner">
-                  <span>{rankLabel(card.rank)}</span>
-                  <span>{suitSymbol(card.suit)}</span>
-                </span>
-                <span className="card__suit">{suitSymbol(card.suit)}</span>
-                <span className="card__corner card__corner--bottom">
-                  <span>{rankLabel(card.rank)}</span>
-                  <span>{suitSymbol(card.suit)}</span>
-                </span>
-              </>
-            ) : (
-              <span className="card__back-mark" />
-            )}
+            <CardFace card={card} />
           </div>
         );
       })}

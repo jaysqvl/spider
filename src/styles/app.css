@@ -36,9 +36,12 @@
   );
   --card-width: var(--card-auto-width);
   --card-height: calc(var(--card-width) * 1.38);
-  --card-rank-size: clamp(0.72rem, calc(var(--card-width) * 0.16), 1.22rem);
-  --card-corner-suit-size: clamp(0.62rem, calc(var(--card-width) * 0.115), 0.98rem);
-  --card-center-suit-size: clamp(1.35rem, calc(var(--card-width) * 0.34), 3.15rem);
+  --card-rank-size: clamp(0.62rem, calc(var(--card-width) * 0.18), 1.28rem);
+  --card-corner-suit-size: clamp(0.52rem, calc(var(--card-width) * 0.13), 1.02rem);
+  --card-pip-size: clamp(0.5rem, calc(var(--card-width) * 0.2), 1.4rem);
+  --card-ace-pip-size: clamp(1.2rem, calc(var(--card-width) * 0.48), 3.05rem);
+  --card-court-title-size: clamp(0.28rem, calc(var(--card-width) * 0.105), 0.74rem);
+  --card-court-symbol-size: clamp(0.42rem, calc(var(--card-width) * 0.16), 1rem);
   --card-offset: calc(var(--card-height) * -0.68);
   --stock-deck-width: max(32px, calc(var(--card-width) * 0.59));
   --stock-deck-height: calc(var(--card-width) * 0.78);
@@ -561,15 +564,24 @@ button {
   color: #b4233a;
 }
 
+.card__face {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
 .card__corner {
   position: absolute;
   top: clamp(3px, calc(var(--card-width) * 0.07), 8px);
   left: clamp(3px, calc(var(--card-width) * 0.07), 8px);
+  z-index: 1;
   display: grid;
   gap: 0;
   font-weight: 800;
   justify-items: center;
   line-height: 1;
+  min-width: clamp(13px, calc(var(--card-width) * 0.27), 25px);
+  font-variant-numeric: tabular-nums;
 }
 
 .card__corner--bottom {
@@ -588,11 +600,132 @@ button {
   line-height: 0.9;
 }
 
-.card__suit {
+.card__center {
+  position: absolute;
+  inset:
+    clamp(14px, calc(var(--card-height) * 0.19), 24px)
+    clamp(5px, calc(var(--card-width) * 0.14), 13px);
   display: grid;
+  place-items: center;
+}
+
+.card__pips {
+  display: grid;
+  width: 82%;
+  height: 100%;
+  grid-template: repeat(5, minmax(0, 1fr)) / repeat(3, minmax(0, 1fr));
+  align-items: center;
+  justify-items: center;
+}
+
+.card__pips--rank-1 {
+  display: grid;
+  width: 100%;
   height: 100%;
   place-items: center;
-  font-size: var(--card-center-suit-size);
+}
+
+.card__pip {
+  display: inline-grid;
+  place-items: center;
+  font-size: var(--card-pip-size);
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.card__pip--emphasis {
+  font-size: var(--card-ace-pip-size);
+}
+
+.card__pip--inverted {
+  transform: rotate(180deg);
+}
+
+.card__court {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+}
+
+.card__court-art {
+  width: 100%;
+  max-height: 100%;
+  overflow: visible;
+}
+
+.card__court-panel {
+  fill: #fff6e4;
+  stroke: currentColor;
+  stroke-opacity: 0.22;
+  stroke-width: 2;
+}
+
+.card__court-face {
+  fill: #f0c99d;
+  stroke: rgba(33, 36, 31, 0.42);
+  stroke-width: 1.5;
+}
+
+.card__court-hair {
+  fill: #634330;
+  opacity: 0.94;
+}
+
+.card__court-robe {
+  fill: currentColor;
+  opacity: 0.18;
+  stroke: currentColor;
+  stroke-opacity: 0.45;
+  stroke-width: 2;
+}
+
+.card__court-sash {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 4;
+  opacity: 0.55;
+}
+
+.card__court-gold {
+  fill: #d9a441;
+  stroke: #75551a;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.card__court-gem,
+.card__court-plume {
+  fill: currentColor;
+  opacity: 0.72;
+  stroke: rgba(33, 36, 31, 0.32);
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
+.card__court-title,
+.card__court-symbol {
+  fill: currentColor;
+  font-family: inherit;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-anchor: middle;
+}
+
+.card__court-title {
+  font-size: var(--card-court-title-size);
+}
+
+.card__court-symbol {
+  font-size: var(--card-court-symbol-size);
+}
+
+.card__court-symbol--bottom {
+  transform: rotate(180deg);
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 .card__back-mark {

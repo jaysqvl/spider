@@ -158,7 +158,7 @@ describe("App", () => {
     vi.useRealTimers();
   });
 
-  it("renders scalable rank and suit labels on face-up cards", async () => {
+  it("renders readable corners and rich face content on face-up cards", async () => {
     const { container } = render(<App />);
 
     await screen.findByLabelText("Tableau");
@@ -166,6 +166,7 @@ describe("App", () => {
 
     expect(faceUpCard?.querySelectorAll(".card__rank").length).toBe(2);
     expect(faceUpCard?.querySelectorAll(".card__corner-suit").length).toBe(2);
+    expect(faceUpCard?.querySelector(".card__center")).toBeInTheDocument();
   });
 
   it("surfaces update checks from settings", async () => {
@@ -296,6 +297,7 @@ describe("App", () => {
 
     const preview = await screen.findByTestId("drag-preview");
     expect(preview.querySelectorAll(".drag-preview__card")).toHaveLength(2);
+    expect(preview.querySelectorAll(".card__court")).toHaveLength(2);
     expect(preview).toHaveStyle("transform: translate3d(70px, 110px, 0)");
   });
 
