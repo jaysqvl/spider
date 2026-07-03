@@ -118,7 +118,7 @@ export function moveCards(state: GameState, move: CardMove): MoveOutcome {
     return validation;
   }
 
-  const next = beginMutation(state);
+  const next = beginMutation(state, false);
   const source = next.tableau[move.fromColumn];
   const destination = next.tableau[move.toColumn];
   const movingCards = source.splice(move.startIndex);
@@ -226,19 +226,19 @@ export function findHint(state: GameState): Hint {
         continue;
       }
 
+      const movingCard = column[startIndex];
+
       for (let toColumn = 0; toColumn < state.tableau.length; toColumn += 1) {
         if (fromColumn === toColumn) {
           continue;
         }
 
-        const move = { fromColumn, startIndex, toColumn };
-
-        if (validateMove(state, move).ok) {
-          const card = column[startIndex];
+        if (!getDestinationMoveBlocker(state.tableau[toColumn], movingCard)) {
+          const move = { fromColumn, startIndex, toColumn };
           return {
             type: "move",
             move,
-            message: `Move ${rankLabel(card.rank)} to column ${toColumn + 1}.`
+            message: `Move ${rankLabel(movingCard.rank)} to column ${toColumn + 1}.`
           };
         }
       }
@@ -256,6 +256,102 @@ export function findHint(state: GameState): Hint {
     type: "none",
     message: "No legal moves are available right now."
   };
+}
+
+export interface RunBlocker {
+  kind: "missing-card" | "face-down" | "incompatible";
+  index: number;
+}
+
+export function findRunBlocker(column: Card[], startIndex: number): RunBlocker | null {
+  if (startIndex < 0 || startIndex >= column.length) {
+    return {
+      kind: "missing-card",
+      index: startIndex
+    };
+  }
+
+  for (let index = startIndex; index < column.length; index += 1) {
+    const card = column[index];
+
+    if (!card.faceUp) {
+      return {
+        kind: "face-down",
+        index
+      };
+    }
+
+    const next = column[index + 1];
+
+    if (!next) {
+      continue;
+    }
+
+    if (!next.faceUp) {
+      return {
+        kind: "face-down",
+        index: index + 1
+      };
+    }
+
+    if (card.suit !== next.suit || card.rank !== next.rank + 1) {
+      return {
+        kind: "incompatible",
+        index: index + 1
+      };
+    }
+  }
+
+  return null;
+}
+
+export function findAutoMove(state: GameState, move: Omit<CardMove, "toColumn">): CardMove | null {
+  const source = state.tableau[move.fromColumn];
+
+  if (!source || !canMoveRun(source, move.startIndex)) {
+    return null;
+  }
+
+  const movingCard = source[move.startIndex];
+  const movingCards = source.length - move.startIndex;
+  let bestToColumn = -1;
+  let bestScore = Number.NEGATIVE_INFINITY;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (let toColumn = 0; toColumn < state.tableau.length; toColumn += 1) {
+    if (toColumn === move.fromColumn) {
+      continue;
+    }
+
+    const destination = state.tableau[toColumn];
+    const destinationCard = destination[destination.length - 1];
+
+    if (destinationCard && (!destinationCard.faceUp || destinationCard.rank !== movingCard.rank + 1)) {
+      continue;
+    }
+
+    const score = destinationCard
+      ? getBuildDestinationScore(destination, movingCard)
+      : getEmptyDestinationScore(source, movingCards);
+    const distance = Math.abs(move.fromColumn - toColumn);
+
+    if (
+      bestToColumn === -1 ||
+      score > bestScore ||
+      (score === bestScore && (distance < bestDistance || (distance === bestDistance && toColumn < bestToColumn)))
+    ) {
+      bestToColumn = toColumn;
+      bestScore = score;
+      bestDistance = distance;
+    }
+  }
+
+  return bestToColumn === -1
+    ? null
+    : {
+        ...move,
+        toColumn: bestToColumn
+      };
 }
 
 export function validateMove(state: GameState, move: CardMove): { ok: true } | { ok: false; reason: string } {
@@ -291,7 +387,7 @@ export function validateMove(state: GameState, move: CardMove): { ok: true } | {
   }
 
   const movingCard = source[move.startIndex];
-  const destinationCard = destination.at(-1);
+  const destinationCard = destination[destination.length - 1];
 
   if (!destinationCard) {
     return { ok: true };
@@ -315,17 +411,7 @@ export function validateMove(state: GameState, move: CardMove): { ok: true } | {
 }
 
 export function canMoveRun(column: Card[], startIndex: number): boolean {
-  if (startIndex < 0 || startIndex >= column.length) {
-    return false;
-  }
-
-  const run = column.slice(startIndex);
-
-  if (run.length === 0 || run.some((card) => !card.faceUp)) {
-    return false;
-  }
-
-  return isDescendingSameSuitRun(run);
+  return findRunBlocker(column, startIndex) === null;
 }
 
 export function canDealStock(state: GameState): boolean {
@@ -397,11 +483,22 @@ export function suitSymbol(suit: Suit): string {
   }
 }
 
-function beginMutation(state: GameState): GameState {
-  const next = cloneState(state);
-  next.undoStack = [...state.undoStack.map(cloneSnapshot), snapshotCore(state)].slice(-MAX_HISTORY);
-  next.redoStack = [];
-  return next;
+function beginMutation(state: GameState, cloneStock = true): GameState {
+  const undoStack =
+    state.undoStack.length >= MAX_HISTORY
+      ? state.undoStack.slice(1)
+      : state.undoStack.slice();
+
+  undoStack.push(snapshotCore(state));
+
+  return {
+    ...state,
+    tableau: state.tableau.map((column) => column.slice()),
+    stock: cloneStock ? state.stock.map((deal) => deal.slice()) : state.stock,
+    completed: state.completed.map((sequence) => ({ ...sequence })),
+    undoStack,
+    redoStack: []
+  };
 }
 
 function finishPlayerAction(state: GameState, completedSequences: number): void {
@@ -438,15 +535,17 @@ function getCompletedSequence(column: Card[]): Pick<CompletedSequence, "suit"> |
     return null;
   }
 
-  const sequence = column.slice(-13);
-  const [first] = sequence;
+  const startIndex = column.length - 13;
+  const first = column[startIndex];
 
-  if (!first || !sequence.every((card) => card.faceUp && card.suit === first.suit)) {
+  if (!first?.faceUp) {
     return null;
   }
 
-  for (let index = 0; index < sequence.length; index += 1) {
-    if (sequence[index].rank !== (13 - index as Rank)) {
+  for (let index = 0; index < 13; index += 1) {
+    const card = column[startIndex + index];
+
+    if (!card.faceUp || card.suit !== first.suit || card.rank !== ((13 - index) as Rank)) {
       return null;
     }
   }
@@ -456,43 +555,83 @@ function getCompletedSequence(column: Card[]): Pick<CompletedSequence, "suit"> |
   };
 }
 
-function isDescendingSameSuitRun(cards: Card[]): boolean {
-  const [first] = cards;
-
-  if (!first) {
-    return false;
-  }
-
-  for (let index = 0; index < cards.length; index += 1) {
-    const card = cards[index];
-
-    if (card.suit !== first.suit) {
-      return false;
-    }
-
-    const next = cards[index + 1];
-
-    if (next && card.rank !== next.rank + 1) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 function revealTopCard(column: Card[]): void {
-  const topCard = column.at(-1);
+  const topCard = column[column.length - 1];
 
   if (topCard && !topCard.faceUp) {
-    topCard.faceUp = true;
+    column[column.length - 1] = {
+      ...topCard,
+      faceUp: true
+    };
   }
+}
+
+function getBuildDestinationScore(destination: Card[], movingCard: Card): number {
+  const destinationCard = destination[destination.length - 1];
+
+  if (!destinationCard) {
+    return 0;
+  }
+
+  const sameSuitBonus = destinationCard.suit === movingCard.suit ? 200 : 100;
+
+  return sameSuitBonus + getSameSuitTailLength(destination);
+}
+
+function getEmptyDestinationScore(source: Card[], movingCards: number): number {
+  return source.length > movingCards ? 50 : 10;
+}
+
+function getDestinationMoveBlocker(destination: Card[] | undefined, movingCard: Card): string | null {
+  if (!destination) {
+    return "That column does not exist.";
+  }
+
+  const destinationCard = destination[destination.length - 1];
+
+  if (!destinationCard) {
+    return null;
+  }
+
+  if (!destinationCard.faceUp) {
+    return "Cards cannot be placed on a face-down card.";
+  }
+
+  if (destinationCard.rank !== movingCard.rank + 1) {
+    return "Tableau cards must build downward by rank.";
+  }
+
+  return null;
+}
+
+function getSameSuitTailLength(column: Card[]): number {
+  const topCard = column[column.length - 1];
+
+  if (!topCard?.faceUp) {
+    return 0;
+  }
+
+  let length = 1;
+
+  for (let index = column.length - 2; index >= 0; index -= 1) {
+    const card = column[index];
+    const previous = column[index + 1];
+
+    if (!card.faceUp || card.suit !== previous.suit || card.rank !== previous.rank + 1) {
+      break;
+    }
+
+    length += 1;
+  }
+
+  return length;
 }
 
 function snapshotCore(state: GameState): CoreSnapshot {
   return {
-    tableau: state.tableau.map((column) => column.map(cloneCard)),
-    stock: state.stock.map((deal) => deal.map(cloneCard)),
-    completed: state.completed.map((sequence) => ({ ...sequence })),
+    tableau: state.tableau.map((column) => column.slice()),
+    stock: state.stock.map((deal) => deal.slice()),
+    completed: state.completed.slice(),
     score: state.score,
     moves: state.moves,
     status: state.status

@@ -4,11 +4,13 @@ import {
   canMoveRun,
   createDeck,
   dealStock,
+  findAutoMove,
+  findRunBlocker,
   moveCards,
   newGame,
+  redo,
   restartGame,
-  undo,
-  redo
+  undo
 } from "./engine";
 import { type Card, type GameState, type Rank, type Suit } from "./types";
 
@@ -93,6 +95,41 @@ describe("Spider engine", () => {
     expect(canMoveRun([card(13), card(12), card(11)], 0)).toBe(true);
     expect(canMoveRun([card(13, "spades"), card(12, "hearts")], 0)).toBe(false);
     expect(canMoveRun([card(13, "spades", false), card(12, "spades")], 0)).toBe(false);
+  });
+
+  it("identifies the attached card that blocks a run", () => {
+    expect(findRunBlocker([card(13, "spades"), card(12, "hearts")], 0)).toEqual({
+      kind: "incompatible",
+      index: 1
+    });
+    expect(findRunBlocker([card(13), card(12, "spades", false)], 0)).toEqual({
+      kind: "face-down",
+      index: 1
+    });
+  });
+
+  it("finds the best automatic destination for a clicked run", () => {
+    const game = stateWithTableau([
+      [card(12), card(11)],
+      [card(13, "hearts")],
+      [card(13)]
+    ]);
+
+    expect(findAutoMove(game, { fromColumn: 0, startIndex: 0 })).toEqual({
+      fromColumn: 0,
+      startIndex: 0,
+      toColumn: 2
+    });
+  });
+
+  it("uses an empty tableau column as an automatic fallback", () => {
+    const game = stateWithTableau([
+      [card(9), card(8)],
+      [card(11)],
+      [card(5)]
+    ]);
+
+    expect(findAutoMove(game, { fromColumn: 0, startIndex: 0 })?.toColumn).toBe(3);
   });
 
   it("accepts valid movable runs into empty tableau columns", () => {
