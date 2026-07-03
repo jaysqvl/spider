@@ -87,7 +87,11 @@ const FACE_DOWN_REVEAL_MAX_PX = 34;
 const FACE_UP_REVEAL_MIN_PX = 46;
 const FACE_UP_REVEAL_MAX_PX = 70;
 const FACE_UP_REVEAL_FLOOR_PX = 34;
+const FACE_UP_REVEAL_COMPACT_FLOOR_MIN_PX = 30;
+const FACE_UP_REVEAL_COMPACT_FLOOR_RATIO = 0.36;
 const FACE_DOWN_REVEAL_FLOOR_PX = 8;
+const COMPACT_STACK_HEIGHT_CAP_CARD_WIDTH_PX = 112;
+const COMPACT_STACK_HEIGHT_CAP_RATIO = 0.86;
 const TABLEAU_FIT_SAFETY_PX = 2;
 const MAX_CARD_WIDTH_TO_TABLEAU_HEIGHT_RATIO = 0.28;
 const ULTRAWIDE_HEIGHT_BALANCE_ASPECT_RATIO = 2;
@@ -1656,16 +1660,12 @@ export function resolveAutoFitLayout(
     return null;
   }
 
-  const sideMetrics = calculateAutoFitMetrics(surface, settings, tableauElement, "side");
   const nextControlLayout =
-    sideMetrics !== null && getBoardControlLayout(surface, sideMetrics, currentControlLayout) === "side"
-      ? "side"
-      : "bottom";
-  const metrics = nextControlLayout === "side" ? sideMetrics ?? bottomMetrics : bottomMetrics;
+    getBoardControlLayout(surface, bottomMetrics, currentControlLayout) === "side" ? "side" : "bottom";
 
   return {
     controlLayout: nextControlLayout,
-    metrics
+    metrics: bottomMetrics
   };
 }
 
@@ -1831,9 +1831,9 @@ function getUltrawideReadableStackFitWidth(availableHeight: number): number | nu
 
 function getReferenceStackCompressedHeight(cardWidth: number): number {
   const faceDownReveal =
-    ULTRAWIDE_REFERENCE_FACE_DOWN_CARDS * getCardRevealFloorPxForFace(false, cardWidth);
+    ULTRAWIDE_REFERENCE_FACE_DOWN_CARDS * getReferenceCardRevealFloorPxForFace(false, cardWidth);
   const faceUpCoveredCards = Math.max(0, ULTRAWIDE_REFERENCE_FACE_UP_RUN_CARDS - 1);
-  const faceUpReveal = faceUpCoveredCards * getCardRevealFloorPxForFace(true, cardWidth);
+  const faceUpReveal = faceUpCoveredCards * getReferenceCardRevealFloorPxForFace(true, cardWidth);
 
   return cardWidth * CARD_HEIGHT_RATIO + faceDownReveal + faceUpReveal;
 }
@@ -1846,7 +1846,7 @@ export function getColumnCardReveals(column: Card[], metrics: AutoFitMetrics): A
   const cardWidth = metrics.cardWidth;
   const availableHeight = metrics.availableHeight;
   const cardHeight = cardWidth * CARD_HEIGHT_RATIO;
-  const availableColumnHeight = Math.max(cardHeight, availableHeight);
+  const rawAvailableColumnHeight = Math.max(cardHeight, availableHeight);
   const coveredCardCount = column.length - 1;
   const revealTargets = new Array<number>(coveredCardCount);
   let targetRevealTotal = 0;
@@ -1860,15 +1860,6 @@ export function getColumnCardReveals(column: Card[], metrics: AutoFitMetrics): A
 
   const reveals: Array<number | undefined> = [undefined];
   const targetHeight = cardHeight + targetRevealTotal;
-
-  if (targetHeight <= availableColumnHeight) {
-    for (const target of revealTargets) {
-      reveals.push(roundRevealPx(target));
-    }
-
-    return reveals;
-  }
-
   const revealMinimums = new Array<number>(coveredCardCount);
   const revealFloors = new Array<number>(coveredCardCount);
   let minimumRevealTotal = 0;
@@ -1887,6 +1878,21 @@ export function getColumnCardReveals(column: Card[], metrics: AutoFitMetrics): A
 
   const minimumHeight = cardHeight + minimumRevealTotal;
   const floorHeight = cardHeight + floorRevealTotal;
+  const availableColumnHeight = getCappedColumnStackHeight(
+    rawAvailableColumnHeight,
+    cardWidth,
+    targetHeight,
+    floorHeight
+  );
+
+  if (targetHeight <= availableColumnHeight) {
+    for (const target of revealTargets) {
+      reveals.push(roundRevealPx(target));
+    }
+
+    return reveals;
+  }
+
   const compressionMinimums =
     minimumHeight <= availableColumnHeight
       ? revealMinimums
@@ -1914,6 +1920,27 @@ export function getColumnCardReveals(column: Card[], metrics: AutoFitMetrics): A
   }
 
   return reveals;
+}
+
+function getCappedColumnStackHeight(
+  rawAvailableHeight: number,
+  cardWidth: number,
+  targetHeight: number,
+  floorHeight: number
+): number {
+  if (cardWidth > COMPACT_STACK_HEIGHT_CAP_CARD_WIDTH_PX) {
+    return rawAvailableHeight;
+  }
+
+  const preferredCap = Math.max(cardWidth * CARD_HEIGHT_RATIO, rawAvailableHeight * COMPACT_STACK_HEIGHT_CAP_RATIO);
+
+  if (targetHeight <= preferredCap) {
+    return rawAvailableHeight;
+  }
+
+  const readableCap = Math.max(preferredCap, Math.min(floorHeight, rawAvailableHeight));
+
+  return Math.min(rawAvailableHeight, readableCap);
 }
 
 function getFallbackCardRevealPx(metrics: AutoFitMetrics): number {
@@ -1945,6 +1972,20 @@ function getCardRevealFloorPx(card: Card, cardWidth: number): number {
 }
 
 function getCardRevealFloorPxForFace(faceUp: boolean, cardWidth: number): number {
+  if (!faceUp) {
+    return FACE_DOWN_REVEAL_FLOOR_PX;
+  }
+
+  const responsiveFloor = clamp(
+    cardWidth * FACE_UP_REVEAL_COMPACT_FLOOR_RATIO,
+    FACE_UP_REVEAL_COMPACT_FLOOR_MIN_PX,
+    FACE_UP_REVEAL_FLOOR_PX
+  );
+
+  return clamp(cardWidth * FACE_UP_REVEAL_FLOOR_RATIO, responsiveFloor, FACE_UP_REVEAL_MAX_PX);
+}
+
+function getReferenceCardRevealFloorPxForFace(faceUp: boolean, cardWidth: number): number {
   return faceUp
     ? clamp(cardWidth * FACE_UP_REVEAL_FLOOR_RATIO, FACE_UP_REVEAL_FLOOR_PX, FACE_UP_REVEAL_MAX_PX)
     : FACE_DOWN_REVEAL_FLOOR_PX;

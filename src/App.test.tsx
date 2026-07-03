@@ -352,7 +352,7 @@ describe("App", () => {
     surface.remove();
   });
 
-  it("resolves ultrawide side-rail fit before writing auto-fit variables", () => {
+  it("keeps resources on the bottom when a side rail would shrink the tableau", () => {
     const surface = document.createElement("section");
     const tableau = document.createElement("div");
     tableau.className = "tableau";
@@ -369,9 +369,33 @@ describe("App", () => {
 
     const resolved = resolveAutoFitLayout(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, "bottom", tableau);
 
-    expect(resolved?.controlLayout).toBe("side");
-    expect(resolved?.metrics.cardWidth).toBe(144);
+    expect(resolved?.controlLayout).toBe("bottom");
+    expect(resolved?.metrics.cardWidth).toBe(165);
     expect(document.documentElement.style.getPropertyValue("--card-fit-width")).toBe("");
+    surface.remove();
+  });
+
+  it("uses the side rail only when the bottom-fit tableau leaves real dead space", () => {
+    const surface = document.createElement("section");
+    const tableau = document.createElement("div");
+    tableau.className = "tableau";
+    tableau.style.columnGap = "12px";
+    Object.defineProperties(surface, {
+      clientWidth: { value: 3000, configurable: true },
+      clientHeight: { value: 900, configurable: true }
+    });
+    Object.defineProperty(window, "innerWidth", { value: 3000, configurable: true });
+    Object.defineProperty(window, "innerHeight", { value: 900, configurable: true });
+    surface.style.paddingLeft = "18px";
+    surface.style.paddingRight = "18px";
+    document.body.append(surface);
+    surface.append(tableau);
+    document.documentElement.style.setProperty("--tableau-gap", "12px");
+
+    const resolved = resolveAutoFitLayout(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, "bottom", tableau);
+
+    expect(resolved?.controlLayout).toBe("side");
+    expect(resolved?.metrics.cardWidth).toBeGreaterThan(200);
     surface.remove();
   });
 
@@ -666,6 +690,28 @@ describe("App", () => {
 
     expect(visibleHeight).toBeLessThanOrEqual(metrics.availableHeight + 0.5);
     expect(Math.min(...reveals.slice(1).map((reveal) => reveal ?? 0))).toBeGreaterThanOrEqual(14);
+  });
+
+  it("caps compact hidden runs before they consume the entire tableau lane", () => {
+    const metrics = {
+      cardWidth: 69,
+      stackVisibleRatio: 0.28,
+      availableHeight: 593
+    };
+    const hiddenKingToTwo = [
+      card(3, "spades", false),
+      card(6, "spades", false),
+      card(9, "spades", false),
+      card(1, "spades", false),
+      ...([13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2] as Rank[]).map((rank) => card(rank, "spades"))
+    ];
+
+    const reveals = getColumnCardReveals(hiddenKingToTwo, metrics);
+    const visibleHeight = metrics.cardWidth * 1.38 + sumRevealPx(reveals);
+    const faceUpReveals = reveals.slice(5).map((reveal) => reveal ?? 0);
+
+    expect(visibleHeight).toBeLessThanOrEqual(metrics.availableHeight * 0.87);
+    expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(30);
   });
 
   it("surfaces update checks from settings", async () => {

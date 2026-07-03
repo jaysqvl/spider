@@ -29,6 +29,7 @@ Spider is a portfolio-quality desktop game project. Keep changes easy to review,
 - Auto-fit must not recompute global card scale or board-wide stack spacing from live tableau height during normal moves. Use stable viewport-based fit plus local column compression for tall stacks.
 - Auto-fit should trust measured play-surface dimensions over transient viewport values during native desktop resize/maximize events.
 - Ultrawide auto-fit must reserve readable height for a King-to-2 face-up run with hidden cards underneath before allowing cards to grow from extra horizontal space.
+- Compact-width tall stacks must cap their visual height before they consume the entire tableau lane. Compress the local column reveal plan while preserving the exposed rank/suit floor instead of letting one run dominate the window.
 - Stacked face-up cards must reveal enough of the top index to remain playable; do not use one aggressive overlap value for both face-down and face-up covered cards.
 - On large or ultrawide boards, covered face-up cards must reserve enough exposed height for the full corner rank/suit pair. Do not let enlarged card art clip the stacked index.
 - Tableau fit calculations need a rounding guard and browser-verified screenshots across tight, tall, standard, and ultrawide-short viewports so the rightmost column cannot be clipped and resize transitions cannot settle into stale tiny-card states.
@@ -44,7 +45,8 @@ Spider is a portfolio-quality desktop game project. Keep changes easy to review,
 - Do not place utility controls in floating overlays that cover the score strip or board.
 - Do not render developer-style tableau column numbers on the game board.
 - Restart follows the currently selected difficulty, matching New Game. Do not make difficulty changes apply to one primary game command but not the other.
-- Stock and completed-sequence slots should live together in a compact resource dock. Use the right-side dead space when the tableau and dock can fit side by side; otherwise use the bottom control area. Side placement must reserve real tableau width, never overlay playable cards.
+- Stock and completed-sequence slots should live together in a compact resource dock. Use the right-side dead space when the bottom-fit tableau and dock can fit side by side without shrinking card width; otherwise use the bottom control area. Side placement must reserve real tableau width, never overlay playable cards.
+- In constrained or narrow desktop windows, the resource dock belongs in the bottom control lane: completed-sequence summaries span horizontally, and the stock/deal control sits in the same bottom lane as the history actions instead of becoming a vertical side rail.
 - Resource dock placement must be deterministic from the current viewport and bottom-layout baseline. Do not use current dock placement or hysteresis thresholds that make the same resized window end in different layouts.
 - Completed-sequence status should summarize active suits with suit marks and completed/possible counts. Do not use generic empty slots, trophy icons, or card-back stacks for completed sequences.
 - Do not use a persistent visual footer/status strip for transient messages.

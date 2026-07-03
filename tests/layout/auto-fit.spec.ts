@@ -6,6 +6,8 @@ interface ViewportCase {
   height: number;
   minCardWidth: number;
   minTableauCoverage?: number;
+  expectedLayout?: "bottom" | "side";
+  maxTallestColumnRatio?: number;
 }
 
 interface RectSnapshot {
@@ -31,12 +33,16 @@ interface LayoutSnapshot {
   surface: RectSnapshot;
   tableau: RectSnapshot;
   resource: RectSnapshot;
+  foundation: RectSnapshot;
+  stock: RectSnapshot;
   leftActions: RectSnapshot;
   rightActions: RectSnapshot;
   leftmostColumn: number;
   rightmostColumn: number;
   topmostCard: number;
   bottommostCard: number;
+  tallestColumnHeight: number;
+  foundationDirection: string;
 }
 
 const VIEWPORTS: ViewportCase[] = [
@@ -44,7 +50,15 @@ const VIEWPORTS: ViewportCase[] = [
   { name: "ultrawide-short", width: 2048, height: 872, minCardWidth: 110, minTableauCoverage: 0.62 },
   { name: "ultrawide-very-short", width: 2560, height: 760, minCardWidth: 96, minTableauCoverage: 0.48 },
   { name: "tall-desktop", width: 900, height: 1180, minCardWidth: 56 },
-  { name: "tight-desktop", width: 900, height: 720, minCardWidth: 56 }
+  { name: "tight-desktop", width: 900, height: 720, minCardWidth: 56 },
+  {
+    name: "narrow-hidden-run",
+    width: 1024,
+    height: 768,
+    minCardWidth: 68,
+    expectedLayout: "bottom",
+    maxTallestColumnRatio: 0.92
+  }
 ];
 
 test("keeps auto-fit tableau and resource dock stable across desktop resize shapes", async ({ page }) => {
@@ -129,6 +143,16 @@ function assertPlayableGeometry(snapshot: LayoutSnapshot, viewport: ViewportCase
   if (viewport.minTableauCoverage !== undefined) {
     expect.soft(snapshot.tableauCoverage, viewport.name).toBeGreaterThanOrEqual(viewport.minTableauCoverage);
   }
+
+  if (viewport.expectedLayout !== undefined) {
+    expect.soft(snapshot.layout, viewport.name).toBe(viewport.expectedLayout);
+  }
+
+  if (viewport.maxTallestColumnRatio !== undefined) {
+    expect
+      .soft(snapshot.tallestColumnHeight, viewport.name)
+      .toBeLessThanOrEqual(snapshot.tableau.height * viewport.maxTallestColumnRatio);
+  }
 }
 
 function assertResourceDockPlacement(snapshot: LayoutSnapshot): void {
@@ -140,8 +164,11 @@ function assertResourceDockPlacement(snapshot: LayoutSnapshot): void {
   }
 
   expect.soft(snapshot.resource.top).toBeGreaterThanOrEqual(snapshot.tableau.bottom - 1);
-  expect.soft(snapshot.resource.left).toBeGreaterThanOrEqual(snapshot.leftActions.right + 4);
-  expect.soft(snapshot.resource.right).toBeLessThanOrEqual(snapshot.rightActions.left - 4);
+  expect.soft(Math.min(snapshot.foundation.left, snapshot.stock.left)).toBeGreaterThanOrEqual(snapshot.leftActions.right - 1);
+  expect.soft(Math.max(snapshot.foundation.right, snapshot.stock.right)).toBeLessThanOrEqual(snapshot.rightActions.left + 1);
+  expect.soft(snapshot.stock.bottom).toBeGreaterThanOrEqual(snapshot.rightActions.top);
+  expect.soft(snapshot.stock.bottom).toBeLessThanOrEqual(snapshot.surface.bottom + 1);
+  expect.soft(snapshot.foundationDirection).toBe("row");
 }
 
 function readLayoutSnapshot(): LayoutSnapshot {
@@ -169,12 +196,23 @@ function readLayoutSnapshot(): LayoutSnapshot {
   const surface = requiredElement<HTMLElement>(".play-surface");
   const tableau = requiredElement<HTMLElement>(".tableau");
   const resource = requiredElement<HTMLElement>(".board-resource-zone");
+  const stock = requiredElement<HTMLElement>(".stock-zone");
+  const foundation = requiredElement<HTMLElement>(".foundation-zone");
   const leftActions = requiredElement<HTMLElement>(".board-actions--left");
   const rightActions = requiredElement<HTMLElement>(".board-actions--right");
   const columns = Array.from(document.querySelectorAll<HTMLElement>(".tableau-column"));
   const cards = Array.from(document.querySelectorAll<HTMLElement>(".tableau-card"));
   const columnRects = columns.map((column) => rectSnapshot(column));
   const cardRects = cards.map((card) => rectSnapshot(card));
+  const columnCardHeights = columns.map((column) => {
+    const rects = Array.from(column.querySelectorAll<HTMLElement>(".tableau-card")).map((card) => card.getBoundingClientRect());
+
+    if (rects.length === 0) {
+      return 0;
+    }
+
+    return Math.max(...rects.map((rect) => rect.bottom)) - Math.min(...rects.map((rect) => rect.top));
+  });
   const leftmostColumn = Math.min(...columnRects.map((rect) => rect.left));
   const rightmostColumn = Math.max(...columnRects.map((rect) => rect.right));
   const topmostCard = Math.min(...cardRects.map((rect) => rect.top));
@@ -195,11 +233,15 @@ function readLayoutSnapshot(): LayoutSnapshot {
     surface: rectSnapshot(surface),
     tableau: rectSnapshot(tableau),
     resource: rectSnapshot(resource),
+    foundation: rectSnapshot(foundation),
+    stock: rectSnapshot(stock),
     leftActions: rectSnapshot(leftActions),
     rightActions: rectSnapshot(rightActions),
     leftmostColumn,
     rightmostColumn,
     topmostCard,
-    bottommostCard
+    bottommostCard,
+    tallestColumnHeight: Math.max(...columnCardHeights),
+    foundationDirection: getComputedStyle(foundation).flexDirection
   };
 }

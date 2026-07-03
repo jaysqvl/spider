@@ -68,7 +68,7 @@
   --stock-padding: clamp(7px, 0.95vw, 12px);
   --stock-reserved-height: calc(var(--stock-deck-height) + (var(--stock-padding) * 2) + 4px);
   --play-bottom-reserved-height: max(var(--play-bottom-controls-height), var(--stock-reserved-height));
-  --foundation-counter-width: clamp(70px, calc(var(--card-width) * 0.78), 104px);
+  --foundation-counter-width: clamp(62px, calc(var(--card-width) * 0.78), 104px);
   --foundation-counter-height: clamp(42px, calc(var(--stock-deck-height) * 0.62), 58px);
   --foundation-side-counter-height: clamp(50px, calc(var(--card-width) * 0.43), 70px);
   font-family:
