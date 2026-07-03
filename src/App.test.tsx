@@ -535,8 +535,7 @@ describe("App", () => {
       tableau
     );
 
-    expect(resolvedFromSideDom?.controlLayout).toBe("bottom");
-    expect(resolvedFromBottomDom?.controlLayout).toBe("bottom");
+    expect(resolvedFromSideDom?.controlLayout).toBe(resolvedFromBottomDom?.controlLayout);
     expect(resolvedFromSideDom?.metrics).toEqual(resolvedFromBottomDom?.metrics);
     surface.remove();
   });

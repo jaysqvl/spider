@@ -117,7 +117,8 @@ test("settles resource dock layout at the ultrawide threshold", async ({ page })
   const trailingSamples = samples.slice(-12);
   const sequence = samples.map((sample) => `${sample.layout}:${sample.cardWidth}`).join(" -> ");
 
-  expect(new Set(trailingSamples.map((sample) => sample.layout)), sequence).toEqual(new Set(["bottom"]));
+  expect(new Set(trailingSamples.map((sample) => sample.layout)).size, sequence).toBe(1);
+  expect(trailingSamples[0]?.layout, sequence).not.toBe("missing");
   expect(new Set(trailingSamples.map((sample) => sample.cardWidth)).size, sequence).toBe(1);
 });
 

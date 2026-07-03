@@ -100,6 +100,7 @@ const ULTRAWIDE_REFERENCE_FACE_UP_RUN_CARDS = 12;
 const SIDE_RESOURCE_MIN_WIDTH_PX = 148;
 const SIDE_RESOURCE_MAX_WIDTH_PX = 190;
 const SIDE_RESOURCE_WIDTH_RATIO = 1.35;
+const SIDE_RESOURCE_MIN_CARD_RETENTION_RATIO = 0.92;
 const SIDE_RESOURCE_ENTER_GAP_PX = 18;
 const SIDE_RESOURCE_ENTER_HEIGHT_PX = 740;
 const TOAST_VISIBLE_MS = 5200;
@@ -1846,23 +1847,73 @@ export function resolveAutoFitLayout(
 
   // Layout choice must be based on candidate geometry, not the currently rendered
   // tableau height; otherwise side and bottom docks can feed back into each other.
-  const bottomMetrics = calculateAutoFitMetrics(surface, settings, undefined, "bottom");
+  const bottomMetrics = calculateCandidateAutoFitMetrics(surface, settings, "bottom");
 
   if (!bottomMetrics) {
     return null;
   }
 
-  const nextControlLayout =
-    getBoardControlLayout(surface, bottomMetrics, currentControlLayout) === "side" ? "side" : "bottom";
-  const nextMetrics =
-    nextControlLayout === "side"
-      ? (calculateAutoFitMetrics(surface, settings, undefined, "side") ?? bottomMetrics)
-      : bottomMetrics;
+  const sideMetrics = calculateCandidateAutoFitMetrics(surface, settings, "side");
+  const sideCardWidth = sideMetrics?.cardWidth ?? null;
+  const bottomCardWidth = bottomMetrics.cardWidth;
+  const keepsCardSize =
+    sideCardWidth !== null &&
+    bottomCardWidth !== null &&
+    sideCardWidth >= bottomCardWidth * SIDE_RESOURCE_MIN_CARD_RETENTION_RATIO;
+  const useSideLayout = sideMetrics && keepsCardSize
+    ? getBoardControlLayout(surface, sideMetrics, currentControlLayout) === "side"
+    : false;
+  const nextControlLayout = useSideLayout ? "side" : "bottom";
+  const nextMetrics = useSideLayout && sideMetrics ? sideMetrics : bottomMetrics;
 
   return {
     controlLayout: nextControlLayout,
     metrics: nextMetrics
   };
+}
+
+function calculateCandidateAutoFitMetrics(
+  surface: HTMLElement,
+  settings: Settings,
+  controlLayout: BoardControlLayout
+): AutoFitMetrics | null {
+  const root = document.documentElement;
+  const previousLayout = surface.getAttribute("data-control-layout");
+  const previousFitWidth = root.style.getPropertyValue("--card-fit-width");
+  let nextFitWidth = parsePixels(previousFitWidth);
+  let metrics: AutoFitMetrics | null = null;
+
+  try {
+    for (let step = 0; step < 4; step += 1) {
+      surface.dataset.controlLayout = controlLayout;
+
+      if (nextFitWidth > 0) {
+        root.style.setProperty("--card-fit-width", `${nextFitWidth}px`);
+      }
+
+      metrics = calculateAutoFitMetrics(surface, settings, undefined, controlLayout);
+
+      if (!metrics?.cardWidth || metrics.cardWidth === nextFitWidth) {
+        break;
+      }
+
+      nextFitWidth = metrics.cardWidth;
+    }
+
+    return metrics;
+  } finally {
+    if (previousLayout === null) {
+      surface.removeAttribute("data-control-layout");
+    } else {
+      surface.setAttribute("data-control-layout", previousLayout);
+    }
+
+    if (previousFitWidth) {
+      root.style.setProperty("--card-fit-width", previousFitWidth);
+    } else {
+      root.style.removeProperty("--card-fit-width");
+    }
+  }
 }
 
 function calculateAutoFitMetrics(
