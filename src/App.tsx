@@ -42,7 +42,7 @@ import { DIFFICULTIES, SUITS, type Card, type CardMove, type Difficulty, type Ga
 import { CardFace, CardView, SuitMark } from "./components/CardView";
 import { IconButton } from "./components/IconButton";
 import { Modal } from "./components/Modal";
-import { DevToolsHost } from "#dev-tools";
+import { DevToolsHost, recordDevLog, type DevDiagnosticsSnapshot } from "#dev-tools";
 import {
   checkForUpdates,
   installAvailableUpdate,
@@ -214,6 +214,7 @@ export default function App() {
   const recordedCompletionKeys = useRef(new Set<string>());
   const settingsRef = useRef(settings);
   const controlLayoutRef = useRef<BoardControlLayout>("bottom");
+  const lastDevLayoutSignatureRef = useRef("");
 
   useEffect(() => {
     let cancelled = false;
@@ -273,6 +274,97 @@ export default function App() {
     };
   }, [settings]);
 
+  const getDevDiagnostics = useCallback((): DevDiagnosticsSnapshot => {
+    const rootStyle = getComputedStyle(document.documentElement);
+    const surface = playSurfaceRef.current;
+    const tableau = tableauRef.current;
+    const resource = surface?.querySelector<HTMLElement>(".board-resource-zone") ?? null;
+    const stock = surface?.querySelector<HTMLElement>(".stock-zone") ?? null;
+    const leftActions = surface?.querySelector<HTMLElement>(".board-actions--left") ?? null;
+    const rightActions = surface?.querySelector<HTMLElement>(".board-actions--right") ?? null;
+    const cards = Array.from(surface?.querySelectorAll<HTMLElement>(".tableau-card") ?? []);
+    const firstCardRect = cards[0]?.getBoundingClientRect();
+    const visualViewport = window.visualViewport;
+    const surfaceRect = surface?.getBoundingClientRect();
+    const tableauRect = tableau?.getBoundingClientRect();
+
+    return {
+      app: {
+        version: appVersion,
+        message,
+        capturedAt: new Date().toISOString(),
+        url: window.location.href,
+        userAgent: window.navigator.userAgent,
+        platform: window.navigator.platform,
+        language: window.navigator.language
+      },
+      viewport: {
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio,
+        visualViewportWidth: visualViewport?.width ?? null,
+        visualViewportHeight: visualViewport?.height ?? null,
+        visualViewportScale: visualViewport?.scale ?? null,
+        screenWidth: window.screen.width,
+        screenHeight: window.screen.height,
+        availableScreenWidth: window.screen.availWidth,
+        availableScreenHeight: window.screen.availHeight
+      },
+      layout: {
+        controlLayout,
+        autoFitCardWidth: autoFitMetrics.cardWidth,
+        autoFitAvailableHeight: autoFitMetrics.availableHeight,
+        autoFitStackVisibleRatio: autoFitMetrics.stackVisibleRatio,
+        cardFitWidth: rootStyle.getPropertyValue("--card-fit-width").trim(),
+        cardWidth: rootStyle.getPropertyValue("--card-width").trim(),
+        cardHeight: rootStyle.getPropertyValue("--card-height").trim(),
+        stackVisibleRatio: rootStyle.getPropertyValue("--card-stack-visible-ratio").trim(),
+        gameScale: document.documentElement.dataset.gameScale ?? null,
+        gameScaleMode: document.documentElement.dataset.gameScaleMode ?? null,
+        surface: getDevRectSnapshot(surface),
+        surfaceWidth: surfaceRect ? roundDebugNumber(surfaceRect.width) : null,
+        surfaceHeight: surfaceRect ? roundDebugNumber(surfaceRect.height) : null,
+        tableau: getDevRectSnapshot(tableau),
+        tableauWidth: tableauRect ? roundDebugNumber(tableauRect.width) : null,
+        tableauHeight: tableauRect ? roundDebugNumber(tableauRect.height) : null,
+        resource: getDevRectSnapshot(resource),
+        stock: getDevRectSnapshot(stock),
+        leftActions: getDevRectSnapshot(leftActions),
+        rightActions: getDevRectSnapshot(rightActions),
+        renderedCardWidth: firstCardRect ? roundDebugNumber(firstCardRect.width) : null,
+        renderedCardHeight: firstCardRect ? roundDebugNumber(firstCardRect.height) : null,
+        scrollWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+        scrollHeight: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
+        cardCount: cards.length
+      },
+      game: {
+        difficulty: game.difficulty,
+        seed: game.seed,
+        status: game.status,
+        score: game.score,
+        moves: game.moves,
+        elapsedMs: game.elapsedMs,
+        stockDeals: game.stock.length,
+        completedSequences: game.completed.length,
+        undoDepth: game.undoStack.length,
+        redoDepth: game.redoStack.length,
+        tableauHeights: game.tableau.map((column) => column.length),
+        faceUpCounts: game.tableau.map((column) => column.filter((card) => card.faceUp).length),
+        hiddenCounts: game.tableau.map((column) => column.filter((card) => !card.faceUp).length),
+        topCards: game.tableau.map((column) => formatDebugCard(column.at(-1) ?? null))
+      },
+      settings: {
+        difficulty: settings.difficulty,
+        theme: settings.theme,
+        cardFace: settings.cardFace,
+        cardBack: settings.cardBack,
+        reducedMotion: settings.reducedMotion,
+        gameScale: settings.gameScale,
+        gameScaleMode: settings.gameScaleMode
+      }
+    };
+  }, [appVersion, autoFitMetrics, controlLayout, game, message, settings]);
+
   useLayoutEffect(() => {
     const surface = playSurfaceRef.current;
 
@@ -292,6 +384,28 @@ export default function App() {
         setAutoFitMetrics((current) =>
           areAutoFitMetricsEqual(current, resolvedLayout.metrics) ? current : resolvedLayout.metrics
         );
+
+        const layoutSignature = [
+          resolvedLayout.controlLayout,
+          resolvedLayout.metrics.cardWidth,
+          resolvedLayout.metrics.availableHeight,
+          window.innerWidth,
+          window.innerHeight,
+          getVisibleInlineSize(surface),
+          getVisibleBlockSize(surface)
+        ].join(":");
+
+        if (layoutSignature !== lastDevLayoutSignatureRef.current) {
+          lastDevLayoutSignatureRef.current = layoutSignature;
+          recordDevLog("layout.autoFit", {
+            controlLayout: resolvedLayout.controlLayout,
+            cardWidth: resolvedLayout.metrics.cardWidth,
+            availableHeight: resolvedLayout.metrics.availableHeight,
+            stackVisibleRatio: resolvedLayout.metrics.stackVisibleRatio,
+            viewport: `${window.innerWidth}x${window.innerHeight}`,
+            surface: `${Math.round(getVisibleInlineSize(surface))}x${Math.round(getVisibleBlockSize(surface))}`
+          });
+        }
 
         if (resolvedLayout.controlLayout !== controlLayoutRef.current) {
           controlLayoutRef.current = resolvedLayout.controlLayout;
@@ -647,6 +761,10 @@ export default function App() {
   }
 
   async function handleDifficultyChange(difficulty: Difficulty): Promise<void> {
+    recordDevLog("settings.difficulty", {
+      previousDifficulty: settingsRef.current.difficulty,
+      nextDifficulty: difficulty
+    });
     await updateSettings({ ...settingsRef.current, difficulty });
     setMessage(`${DIFFICULTIES[difficulty].label} selected.`);
   }
@@ -654,6 +772,10 @@ export default function App() {
   function handleNewGame(): void {
     recordAbandonIfNeeded();
     const next = newGame(settingsRef.current.difficulty);
+    recordDevLog("game.new", {
+      difficulty: next.difficulty,
+      seed: next.seed
+    });
     persistGame(next);
     scheduleDealAnimation(getInitialDealAnimationOrders(next.tableau));
     setMessage(`${DIFFICULTIES[next.difficulty].label} game started.`);
@@ -663,6 +785,11 @@ export default function App() {
     recordAbandonIfNeeded();
     const selectedDifficulty = settingsRef.current.difficulty;
     const next = gameRef.current.difficulty === selectedDifficulty ? restartGame(gameRef.current) : newGame(selectedDifficulty);
+    recordDevLog("game.restart", {
+      previousDifficulty: gameRef.current.difficulty,
+      selectedDifficulty,
+      nextSeed: next.seed
+    });
     persistGame(next);
     scheduleDealAnimation(getInitialDealAnimationOrders(next.tableau));
     setMessage(`${DIFFICULTIES[next.difficulty].label} game restarted.`);
@@ -670,18 +797,32 @@ export default function App() {
 
   function handleUndo(): void {
     const next = undo(gameRef.current);
+    recordDevLog("game.undo", {
+      changed: next !== gameRef.current,
+      undoDepth: gameRef.current.undoStack.length,
+      redoDepth: gameRef.current.redoStack.length
+    });
     persistGame(next);
     setMessage(next === gameRef.current ? "Nothing to undo." : "Move undone.");
   }
 
   function handleRedo(): void {
     const next = redo(gameRef.current);
+    recordDevLog("game.redo", {
+      changed: next !== gameRef.current,
+      undoDepth: gameRef.current.undoStack.length,
+      redoDepth: gameRef.current.redoStack.length
+    });
     persistGame(next);
     setMessage(next === gameRef.current ? "Nothing to redo." : "Move redone.");
   }
 
   function handleHint(): void {
     const hint = findHint(gameRef.current);
+    recordDevLog("game.hint", {
+      type: hint.type,
+      message: hint.message
+    });
     clearBlockedRunFeedback();
     setMessage(hint.message);
     setHintMove(hint.type === "move" ? hint.move : null);
@@ -692,10 +833,16 @@ export default function App() {
     const outcome = dealStock(gameRef.current);
 
     if (!outcome.ok) {
+      recordDevLog("game.deal.blocked", { reason: outcome.reason }, "warn");
       setMessage(outcome.reason);
       return;
     }
 
+    recordDevLog("game.deal", {
+      stockDealsRemaining: outcome.state.stock.length,
+      completedSequences: outcome.completedSequences,
+      tableauHeights: outcome.state.tableau.map((column) => column.length)
+    });
     persistGame(outcome.state);
     const dealOrders = getStockDealAnimationOrders(outcome.state.tableau);
 
@@ -719,10 +866,17 @@ export default function App() {
     const outcome = moveCards(current, move);
 
     if (!outcome.ok) {
+      recordDevLog("game.move.blocked", { reason: outcome.reason, move }, "warn");
       setMessage(outcome.reason);
       return false;
     }
 
+    recordDevLog("game.move", {
+      move,
+      completedSequences: outcome.completedSequences,
+      score: outcome.state.score,
+      moves: outcome.state.moves
+    });
     persistGame(outcome.state);
     scheduleMoveAnimation(moveAnimationSnapshots, coverDetailCardIds);
     setMessage(outcome.completedSequences > 0 ? "Sequence cleared." : successMessage);
@@ -1196,6 +1350,11 @@ export default function App() {
   }
 
   function handleLoadToolGame(nextGame: GameState, message: string): void {
+    recordDevLog("dev.state.applied", {
+      seed: nextGame.seed,
+      difficulty: nextGame.difficulty,
+      tableauHeights: nextGame.tableau.map((column) => column.length)
+    });
     persistGame(nextGame);
     setDragPreview(null);
     dragPreviewRef.current = null;
@@ -1226,7 +1385,7 @@ export default function App() {
             setModal("stats");
           }}
           onAbout={() => setModal("about")}
-          devToolsSlot={<DevToolsHost onLoadGame={handleLoadToolGame} />}
+          devToolsSlot={<DevToolsHost onLoadGame={handleLoadToolGame} getDiagnostics={getDevDiagnostics} />}
           onInstallUpdate={() => {
             void handleInstallUpdate();
           }}
@@ -1584,6 +1743,35 @@ export default function App() {
 
 export function shouldEnableDevTools(env: DevToolsEnv): boolean {
   return env.DEV || env.VITE_SPIDER_DEV_TOOLS === "true";
+}
+
+function getDevRectSnapshot(element: Element | null | undefined): Record<string, number> | null {
+  if (!element) {
+    return null;
+  }
+
+  const rect = element.getBoundingClientRect();
+
+  return {
+    left: roundDebugNumber(rect.left),
+    right: roundDebugNumber(rect.right),
+    top: roundDebugNumber(rect.top),
+    bottom: roundDebugNumber(rect.bottom),
+    width: roundDebugNumber(rect.width),
+    height: roundDebugNumber(rect.height)
+  };
+}
+
+function formatDebugCard(card: Card | null): string | null {
+  if (!card) {
+    return null;
+  }
+
+  return `${card.rank}-${card.suit}-${card.faceUp ? "up" : "down"}`;
+}
+
+function roundDebugNumber(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function applyGameScale(root: HTMLElement, settings: Settings): void {

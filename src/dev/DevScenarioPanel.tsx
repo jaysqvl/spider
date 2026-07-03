@@ -1,9 +1,16 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { STATE_VERSION, type Card, type CompletedSequence, type Difficulty, type GameState, type Rank, type Suit } from "../game/types";
+import {
+  clearDevLogEntries,
+  getDevLogEntries,
+  type DevDiagnosticsSnapshot,
+  type DevLogEntry
+} from "./devTools";
 
 export interface DevScenarioPanelProps {
   onLoadGame: (game: GameState, label: string) => void;
   onClose: () => void;
+  getDiagnostics: () => DevDiagnosticsSnapshot;
 }
 
 type DevScenarioId = "hidden-king-to-two" | "deep-compression" | "full-width-stagger" | "resource-rail";
@@ -46,9 +53,55 @@ const DEV_SCENARIOS: DevScenario[] = [
   }
 ];
 
-export function DevScenarioPanel({ onLoadGame, onClose }: DevScenarioPanelProps) {
+interface DebugReport {
+  capturedAt: string;
+  diagnostics: DevDiagnosticsSnapshot;
+  logs: DevLogEntry[];
+}
+
+export function DevScenarioPanel({ onLoadGame, onClose, getDiagnostics }: DevScenarioPanelProps) {
   const [selectedId, setSelectedId] = useState<DevScenarioId>(DEV_SCENARIOS[0].id);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const selectedScenario = DEV_SCENARIOS.find((scenario) => scenario.id === selectedId) ?? DEV_SCENARIOS[0];
+  const report = useMemo(() => createDebugReport(getDiagnostics), [getDiagnostics, refreshKey]);
+  const reportJson = useMemo(() => JSON.stringify(report, null, 2), [report]);
+  const viewportLabel = `${formatDebugValue(report.diagnostics.viewport.innerWidth)} x ${formatDebugValue(
+    report.diagnostics.viewport.innerHeight
+  )}`;
+  const visualViewportLabel = `${formatDebugValue(report.diagnostics.viewport.visualViewportWidth)} x ${formatDebugValue(
+    report.diagnostics.viewport.visualViewportHeight
+  )}`;
+  const layout = report.diagnostics.layout;
+  const game = report.diagnostics.game;
+
+  async function handleCopyReport(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(reportJson);
+      setCopyState("copied");
+    } catch {
+      setCopyState("failed");
+    }
+  }
+
+  function handleDownloadReport(): void {
+    const blob = new Blob([reportJson], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `spider-debug-${new Date().toISOString().replaceAll(":", "-")}.json`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleClearLogs(): void {
+    clearDevLogEntries();
+    setCopyState("idle");
+    setRefreshKey((key) => key + 1);
+  }
 
   return (
     <>
@@ -73,6 +126,61 @@ export function DevScenarioPanel({ onLoadGame, onClose }: DevScenarioPanelProps)
         <p className="about-panel__summary">{selectedScenario.description}</p>
       </div>
 
+      <section className="dev-diagnostics" aria-label="Debug diagnostics">
+        <div className="dev-diagnostics__header">
+          <h3>Debug Data</h3>
+          <div className="dev-diagnostics__actions">
+            <button type="button" onClick={() => setRefreshKey((key) => key + 1)}>
+              Refresh
+            </button>
+            <button type="button" onClick={() => void handleCopyReport()}>
+              Copy Report
+            </button>
+            <button type="button" onClick={handleDownloadReport}>
+              Download Report
+            </button>
+            <button type="button" onClick={handleClearLogs}>
+              Clear Logs
+            </button>
+          </div>
+        </div>
+
+        {copyState === "copied" ? <p className="dev-diagnostics__status">Debug report copied.</p> : null}
+        {copyState === "failed" ? <p className="dev-diagnostics__status">Clipboard copy failed.</p> : null}
+
+        <dl className="dev-diagnostics__grid">
+          <DebugDatum label="Web UI" value={viewportLabel} />
+          <DebugDatum label="Visual viewport" value={visualViewportLabel} />
+          <DebugDatum label="Device pixel ratio" value={report.diagnostics.viewport.devicePixelRatio} />
+          <DebugDatum label="Screen" value={`${formatDebugValue(report.diagnostics.viewport.screenWidth)} x ${formatDebugValue(report.diagnostics.viewport.screenHeight)}`} />
+          <DebugDatum label="Control layout" value={layout.controlLayout} />
+          <DebugDatum label="Card fit width" value={layout.cardFitWidth} />
+          <DebugDatum label="Card width" value={formatPixels(layout.renderedCardWidth)} />
+          <DebugDatum label="Card height" value={formatPixels(layout.renderedCardHeight)} />
+          <DebugDatum label="Tableau" value={`${formatDebugValue(layout.tableauWidth)} x ${formatDebugValue(layout.tableauHeight)}`} />
+          <DebugDatum label="Surface" value={`${formatDebugValue(layout.surfaceWidth)} x ${formatDebugValue(layout.surfaceHeight)}`} />
+          <DebugDatum label="Scroll" value={`${formatDebugValue(layout.scrollWidth)} x ${formatDebugValue(layout.scrollHeight)}`} />
+          <DebugDatum label="Difficulty" value={game.difficulty} />
+          <DebugDatum label="Seed" value={game.seed} />
+          <DebugDatum label="Stock" value={`${formatDebugValue(game.stockDeals)} deals`} />
+          <DebugDatum label="Completed" value={`${formatDebugValue(game.completedSequences)}/8`} />
+          <DebugDatum label="Columns" value={formatDebugValue(game.tableauHeights)} />
+        </dl>
+
+        <details className="dev-diagnostics__details">
+          <summary>Recent Dev Logs ({report.logs.length})</summary>
+          <ol className="dev-log-list">
+            {report.logs.slice(-12).map((entry) => (
+              <li key={entry.id}>
+                <code>{entry.at}</code>
+                <strong>{entry.event}</strong>
+                {entry.details ? <span>{formatDebugValue(entry.details)}</span> : null}
+              </li>
+            ))}
+          </ol>
+        </details>
+      </section>
+
       <div className="modal-actions">
         <button type="button" onClick={() => onLoadGame(selectedScenario.createGame(), selectedScenario.label)}>
           Load State
@@ -83,6 +191,47 @@ export function DevScenarioPanel({ onLoadGame, onClose }: DevScenarioPanelProps)
       </div>
     </>
   );
+}
+
+function DebugDatum({ label, value }: { label: string; value: unknown }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{formatDebugValue(value)}</dd>
+    </div>
+  );
+}
+
+function createDebugReport(getDiagnostics: () => DevDiagnosticsSnapshot): DebugReport {
+  return {
+    capturedAt: new Date().toISOString(),
+    diagnostics: getDiagnostics(),
+    logs: getDevLogEntries()
+  };
+}
+
+function formatDebugValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.join(", ");
+  }
+
+  if (value === null || value === undefined || value === "") {
+    return "n/a";
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
+}
+
+function formatPixels(value: unknown): string {
+  if (typeof value !== "number") {
+    return formatDebugValue(value);
+  }
+
+  return `${value}px`;
 }
 
 function createHiddenKingToTwoGame(): GameState {

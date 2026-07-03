@@ -43,6 +43,8 @@ Spider is a portfolio-quality desktop game project. Keep changes easy to review,
 - Keep core controls visible and dependable. Do not hide New Game, Restart, or primary utility controls behind a hover-only top-edge menu.
 - Utility controls such as Settings, Stats, About, and installer actions should live in a normal right-aligned toolbar group or settings surface.
 - Do not place utility controls in floating overlays that cover the score strip or board.
+- Dev-only testing tools must include enough diagnostics to reproduce layout bugs: viewport/screen dimensions, control layout, card sizing CSS variables, relevant board rectangles, game seed/difficulty, tableau shape, settings, and recent dev log events.
+- Debug report copy/download and extra UI logging must be gated to local/dev-release builds. Stable builds should compile the dev tools boundary to no-op behavior and must not expose debug logs or diagnostic exports.
 - Do not render developer-style tableau column numbers on the game board.
 - Restart follows the currently selected difficulty, matching New Game. Do not make difficulty changes apply to one primary game command but not the other.
 - Stock and completed-sequence slots should live together in a compact resource dock. Use the right-side dead space when the bottom-fit tableau and dock can fit side by side without shrinking card width; otherwise use the bottom control area. Side placement must reserve real tableau width, never overlay playable cards.

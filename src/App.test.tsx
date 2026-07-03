@@ -87,6 +87,56 @@ describe("App", () => {
     });
   });
 
+  it("exports dev diagnostics with viewport, layout, game, and log data", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+
+    Object.defineProperty(window, "innerWidth", { value: 1024, configurable: true });
+    Object.defineProperty(window, "innerHeight", { value: 768, configurable: true });
+    Object.defineProperty(window, "devicePixelRatio", { value: 1.5, configurable: true });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText }
+    });
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Testing" }));
+    expect(await screen.findByRole("dialog", { name: "Testing" })).toBeInTheDocument();
+    expect(screen.getByText("Debug Data")).toBeInTheDocument();
+    expect(screen.getByText("Web UI")).toBeInTheDocument();
+    expect(screen.getByText("1024 x 768")).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Stress state"), "hidden-king-to-two");
+    await user.click(screen.getByRole("button", { name: "Load State" }));
+    expect(await screen.findByText("Dev state loaded: Hidden + K-to-2 vertical run.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Testing" }));
+    await user.click(await screen.findByRole("button", { name: "Copy Report" }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    const report = JSON.parse(writeText.mock.calls.at(-1)?.[0] as string) as {
+      diagnostics: {
+        viewport: { innerWidth: number; innerHeight: number; devicePixelRatio: number };
+        layout: { controlLayout: string; cardCount: number };
+        game: { seed: string; tableauHeights: number[] };
+      };
+      logs: Array<{ event: string }>;
+    };
+
+    expect(report.diagnostics.viewport).toMatchObject({
+      innerWidth: 1024,
+      innerHeight: 768,
+      devicePixelRatio: 1.5
+    });
+    expect(report.diagnostics.layout.controlLayout).toMatch(/bottom|side/);
+    expect(report.diagnostics.layout.cardCount).toBeGreaterThan(0);
+    expect(report.diagnostics.game.seed).toBe("dev:hidden-king-to-two");
+    expect(report.diagnostics.game.tableauHeights[0]).toBe(16);
+    expect(report.logs.some((entry) => entry.event === "dev.state.load")).toBe(true);
+    expect(report.logs.some((entry) => entry.event === "dev.state.applied")).toBe(true);
+  });
+
   it("summarizes completed sequences by active suit", async () => {
     const game = {
       ...gameWithRun(),

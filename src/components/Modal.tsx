@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { IconButton } from "./IconButton";
 
@@ -9,7 +10,7 @@ interface ModalProps {
 }
 
 export function Modal({ title, children, onClose }: ModalProps) {
-  return (
+  return createPortal(
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section
         className="modal"
@@ -24,6 +25,7 @@ export function Modal({ title, children, onClose }: ModalProps) {
         </header>
         <div className="modal__body">{children}</div>
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }

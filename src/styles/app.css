@@ -1231,6 +1231,107 @@ button {
   gap: 12px;
 }
 
+.dev-diagnostics {
+  display: grid;
+  gap: 12px;
+  max-height: min(48vh, 520px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+  padding: 12px;
+}
+
+.dev-diagnostics__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.dev-diagnostics__header h3 {
+  margin: 0;
+  font-size: 0.96rem;
+  line-height: 1.2;
+}
+
+.dev-diagnostics__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.dev-diagnostics__actions button {
+  min-height: 30px;
+  padding: 5px 8px;
+  font-size: 0.8rem;
+}
+
+.dev-diagnostics__status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.dev-diagnostics__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.dev-diagnostics__grid div {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+  padding: 8px;
+}
+
+.dev-diagnostics__grid dt {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.dev-diagnostics__grid dd {
+  min-width: 0;
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.dev-diagnostics__details {
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.dev-log-list {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.dev-log-list li {
+  display: grid;
+  gap: 2px;
+}
+
+.dev-log-list code,
+.dev-log-list span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  font-size: 0.74rem;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

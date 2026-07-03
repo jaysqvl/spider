@@ -5,13 +5,36 @@ import { Modal } from "../components/Modal";
 import type { GameState } from "../game/types";
 import type { DevScenarioPanelProps } from "./DevScenarioPanel";
 
+export type DevLogLevel = "info" | "warn" | "error";
+export type DevLogDetails = Record<string, unknown>;
+
+export interface DevLogEntry {
+  id: number;
+  at: string;
+  level: DevLogLevel;
+  event: string;
+  details?: DevLogDetails;
+}
+
+export interface DevDiagnosticsSnapshot {
+  app: DevLogDetails;
+  viewport: DevLogDetails;
+  layout: DevLogDetails;
+  game: DevLogDetails;
+  settings: DevLogDetails;
+}
+
 interface DevToolsHostProps {
   onLoadGame: (game: GameState, message: string) => void;
+  getDiagnostics: () => DevDiagnosticsSnapshot;
 }
 
 type DevScenarioPanelComponent = ComponentType<DevScenarioPanelProps>;
+const MAX_DEV_LOG_ENTRIES = 200;
+const devLogEntries: DevLogEntry[] = [];
+let nextDevLogId = 0;
 
-export function DevToolsHost({ onLoadGame }: DevToolsHostProps) {
+export function DevToolsHost({ onLoadGame, getDiagnostics }: DevToolsHostProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [DevScenarioPanel, setDevScenarioPanel] = useState<DevScenarioPanelComponent | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -42,6 +65,12 @@ export function DevToolsHost({ onLoadGame }: DevToolsHostProps) {
   }
 
   function handleLoadGame(nextGame: GameState, label: string): void {
+    recordDevLog("dev.state.load", {
+      label,
+      difficulty: nextGame.difficulty,
+      seed: nextGame.seed,
+      tableauHeights: nextGame.tableau.map((column) => column.length)
+    });
     setIsOpen(false);
     onLoadGame(nextGame, `Dev state loaded: ${label}.`);
   }
@@ -53,7 +82,7 @@ export function DevToolsHost({ onLoadGame }: DevToolsHostProps) {
       {isOpen ? (
         <Modal title="Testing" onClose={() => setIsOpen(false)}>
           {DevScenarioPanel ? (
-            <DevScenarioPanel onLoadGame={handleLoadGame} onClose={() => setIsOpen(false)} />
+            <DevScenarioPanel onLoadGame={handleLoadGame} onClose={() => setIsOpen(false)} getDiagnostics={getDiagnostics} />
           ) : (
             <div className="reset-panel">
               <TestTube size={30} aria-hidden="true" />
@@ -77,4 +106,30 @@ async function loadDevScenarioPanel(): Promise<DevScenarioPanelComponent> {
   const module = await import("./DevScenarioPanel");
 
   return module.DevScenarioPanel;
+}
+
+export function recordDevLog(event: string, details?: DevLogDetails, level: DevLogLevel = "info"): void {
+  nextDevLogId += 1;
+  devLogEntries.push({
+    id: nextDevLogId,
+    at: new Date().toISOString(),
+    level,
+    event,
+    details
+  });
+
+  if (devLogEntries.length > MAX_DEV_LOG_ENTRIES) {
+    devLogEntries.splice(0, devLogEntries.length - MAX_DEV_LOG_ENTRIES);
+  }
+}
+
+export function getDevLogEntries(): DevLogEntry[] {
+  return devLogEntries.map((entry) => ({
+    ...entry,
+    details: entry.details === undefined ? undefined : { ...entry.details }
+  }));
+}
+
+export function clearDevLogEntries(): void {
+  devLogEntries.length = 0;
 }
