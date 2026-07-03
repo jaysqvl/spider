@@ -15,6 +15,7 @@ const GAME_SCALE_MAX: i64 = 100;
 const GAME_SCALE_STEP: i64 = 5;
 const GAME_SCALE_DEFAULT: i64 = 100;
 const GAME_SCALE_MODE_DEFAULT: &str = "auto";
+const CARD_FACE_DEFAULT: &str = "system";
 
 pub struct StorageState {
     conn: Mutex<Connection>,
@@ -37,6 +38,8 @@ pub struct SettingsPayload {
     pub theme: String,
     pub difficulty: String,
     pub card_back: String,
+    #[serde(default = "default_card_face")]
+    pub card_face: String,
     #[serde(default = "default_game_scale")]
     pub game_scale: i64,
     #[serde(default = "default_game_scale_mode")]
@@ -73,6 +76,7 @@ pub struct StatsRollup {
     pub games_abandoned: i64,
     pub best_score: Option<i64>,
     pub best_time_ms: Option<i64>,
+    pub total_score: i64,
     pub total_moves: i64,
     pub total_elapsed_ms: i64,
 }
@@ -240,7 +244,7 @@ fn load_stats_from_connection(conn: &Connection) -> Result<StatsPayload, String>
     let mut statement = conn
         .prepare(
             "SELECT scope, difficulty, games_played, games_won, games_abandoned,
-                    best_score, best_time_ms, total_moves, total_elapsed_ms
+                    best_score, best_time_ms, total_score, total_moves, total_elapsed_ms
              FROM stats_rollups
              ORDER BY CASE scope WHEN 'all' THEN 0 ELSE 1 END, difficulty",
         )
@@ -255,8 +259,9 @@ fn load_stats_from_connection(conn: &Connection) -> Result<StatsPayload, String>
                 games_abandoned: row.get(4)?,
                 best_score: row.get(5)?,
                 best_time_ms: row.get(6)?,
-                total_moves: row.get(7)?,
-                total_elapsed_ms: row.get(8)?,
+                total_score: row.get(7)?,
+                total_moves: row.get(8)?,
+                total_elapsed_ms: row.get(9)?,
             })
         })
         .map_err(to_string)?
@@ -385,9 +390,10 @@ fn run_migrations(conn: &Connection) -> Result<(), String> {
 }
 
 fn migrations() -> Vec<(&'static str, &'static str)> {
-    vec![(
-        "001_initial_local_data",
-        "CREATE TABLE settings (
+    vec![
+        (
+            "001_initial_local_data",
+            "CREATE TABLE settings (
             key TEXT PRIMARY KEY,
             value_json TEXT NOT NULL,
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -434,7 +440,21 @@ fn migrations() -> Vec<(&'static str, &'static str)> {
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (scope, difficulty)
         );",
-    )]
+        ),
+        (
+            "002_stats_total_score",
+            "ALTER TABLE stats_rollups
+                ADD COLUMN total_score INTEGER NOT NULL DEFAULT 0;
+
+            UPDATE stats_rollups
+            SET total_score = COALESCE((
+                SELECT SUM(completed_games.score)
+                FROM completed_games
+                WHERE stats_rollups.scope = 'all'
+                   OR completed_games.difficulty = stats_rollups.difficulty
+            ), 0);",
+        ),
+    ]
 }
 
 fn update_rollup(
@@ -464,6 +484,7 @@ fn update_rollup(
                 WHEN ?3 = 'won' AND (best_time_ms IS NULL OR ?5 < best_time_ms) THEN ?5
                 ELSE best_time_ms
             END,
+            total_score = total_score + ?4,
             total_moves = total_moves + ?6,
             total_elapsed_ms = total_elapsed_ms + ?5,
             updated_at = CURRENT_TIMESTAMP
@@ -490,6 +511,7 @@ fn empty_rollup(scope: &str, difficulty: &str) -> StatsRollup {
         games_abandoned: 0,
         best_score: None,
         best_time_ms: None,
+        total_score: 0,
         total_moves: 0,
         total_elapsed_ms: 0,
     }
@@ -500,6 +522,7 @@ fn default_settings() -> SettingsPayload {
         "theme": "system",
         "difficulty": "one-suit",
         "cardBack": "spruce",
+        "cardFace": CARD_FACE_DEFAULT,
         "gameScale": GAME_SCALE_DEFAULT,
         "gameScaleMode": GAME_SCALE_MODE_DEFAULT,
         "reducedMotion": false
@@ -509,6 +532,7 @@ fn default_settings() -> SettingsPayload {
 
 fn normalize_settings(settings: SettingsPayload) -> SettingsPayload {
     SettingsPayload {
+        card_face: normalize_card_face(&settings.card_face).to_string(),
         game_scale: normalize_game_scale(settings.game_scale),
         game_scale_mode: normalize_game_scale_mode(&settings.game_scale_mode).to_string(),
         ..settings
@@ -527,6 +551,18 @@ fn default_game_scale() -> i64 {
 
 fn default_game_scale_mode() -> String {
     GAME_SCALE_MODE_DEFAULT.to_string()
+}
+
+fn default_card_face() -> String {
+    CARD_FACE_DEFAULT.to_string()
+}
+
+fn normalize_card_face(value: &str) -> &str {
+    if value == "system" || value == "classic" || value == "dark" {
+        value
+    } else {
+        CARD_FACE_DEFAULT
+    }
 }
 
 fn normalize_game_scale_mode(value: &str) -> &str {
@@ -589,6 +625,7 @@ mod tests {
 
         assert_eq!(settings.game_scale, 100);
         assert_eq!(settings.game_scale_mode, "auto");
+        assert_eq!(settings.card_face, "system");
     }
 
     #[test]
@@ -597,6 +634,7 @@ mod tests {
             "theme": "dark",
             "difficulty": "one-suit",
             "cardBack": "spruce",
+            "cardFace": "dark",
             "gameScale": 85,
             "gameScaleMode": "manual",
             "reducedMotion": true
@@ -605,6 +643,43 @@ mod tests {
 
         assert_eq!(settings.game_scale, 85);
         assert_eq!(settings.game_scale_mode, "manual");
+        assert_eq!(settings.card_face, "dark");
+    }
+
+    #[test]
+    fn settings_normalize_invalid_card_face() {
+        let settings = normalize_settings(
+            serde_json::from_value(json!({
+                "theme": "dark",
+                "difficulty": "one-suit",
+                "cardBack": "spruce",
+                "cardFace": "neon",
+                "gameScale": 90,
+                "gameScaleMode": "auto",
+                "reducedMotion": true
+            }))
+            .expect("settings should deserialize"),
+        );
+
+        assert_eq!(settings.card_face, "system");
+    }
+
+    #[test]
+    fn settings_migrate_legacy_light_card_face_to_theme_matching() {
+        let settings = normalize_settings(
+            serde_json::from_value(json!({
+                "theme": "dark",
+                "difficulty": "one-suit",
+                "cardBack": "spruce",
+                "cardFace": "light",
+                "gameScale": 90,
+                "gameScaleMode": "auto",
+                "reducedMotion": true
+            }))
+            .expect("settings should deserialize"),
+        );
+
+        assert_eq!(settings.card_face, "system");
     }
 
     #[test]
@@ -699,8 +774,77 @@ mod tests {
 
         assert_eq!(all_rollup.games_played, 1);
         assert_eq!(all_rollup.games_abandoned, 1);
+        assert_eq!(all_rollup.total_score, 497);
         assert_eq!(difficulty_rollup.games_played, 1);
+        assert_eq!(difficulty_rollup.total_score, 497);
         assert_eq!(difficulty_rollup.total_moves, 3);
+    }
+
+    #[test]
+    fn stats_total_score_migration_backfills_existing_rollups() {
+        let conn = Connection::open_in_memory().expect("in-memory database should open");
+        conn.execute_batch(
+            "CREATE TABLE schema_migrations (
+                id TEXT PRIMARY KEY,
+                applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            INSERT INTO schema_migrations (id) VALUES ('001_initial_local_data');
+
+            CREATE TABLE completed_games (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                difficulty TEXT NOT NULL,
+                seed TEXT NOT NULL,
+                outcome TEXT NOT NULL CHECK (outcome IN ('won', 'abandoned')),
+                score INTEGER NOT NULL,
+                moves INTEGER NOT NULL,
+                elapsed_ms INTEGER NOT NULL,
+                started_at TEXT NOT NULL,
+                completed_at TEXT NOT NULL
+            );
+
+            CREATE TABLE stats_rollups (
+                scope TEXT NOT NULL,
+                difficulty TEXT NOT NULL,
+                games_played INTEGER NOT NULL DEFAULT 0,
+                games_won INTEGER NOT NULL DEFAULT 0,
+                games_abandoned INTEGER NOT NULL DEFAULT 0,
+                best_score INTEGER,
+                best_time_ms INTEGER,
+                total_moves INTEGER NOT NULL DEFAULT 0,
+                total_elapsed_ms INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (scope, difficulty)
+            );
+
+            INSERT INTO completed_games (
+                difficulty, seed, outcome, score, moves, elapsed_ms, started_at, completed_at
+            ) VALUES
+                ('one-suit', 'won-seed', 'won', 612, 88, 120000, '2026-01-01T00:00:00.000Z', '2026-01-01T00:02:00.000Z'),
+                ('two-suit', 'abandoned-seed', 'abandoned', 497, 3, 12000, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:12.000Z');
+            INSERT INTO stats_rollups (scope, difficulty, games_played)
+            VALUES ('all', 'all', 2), ('difficulty', 'one-suit', 1);",
+        )
+        .expect("legacy database should be created");
+
+        run_migrations(&conn).expect("legacy stats should migrate");
+
+        let all_score = conn
+            .query_row(
+                "SELECT total_score FROM stats_rollups WHERE scope = 'all' AND difficulty = 'all'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("all total score should be readable");
+        let one_suit_score = conn
+            .query_row(
+                "SELECT total_score FROM stats_rollups WHERE scope = 'difficulty' AND difficulty = 'one-suit'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("difficulty total score should be readable");
+
+        assert_eq!(all_score, 1109);
+        assert_eq!(one_suit_score, 612);
     }
 
     fn in_memory_state() -> StorageState {

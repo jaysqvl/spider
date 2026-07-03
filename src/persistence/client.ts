@@ -198,13 +198,7 @@ function loadLocalSettings(): Settings {
 }
 
 function loadLocalStats(): StatsPayload {
-  const value = readJson(STATS_KEY);
-
-  if (!isRecord(value) || !Array.isArray(value.rollups)) {
-    return DEFAULT_STATS;
-  }
-
-  return value as unknown as StatsPayload;
+  return normalizeStats(readJson(STATS_KEY));
 }
 
 function mergeSettings(value: unknown): Settings {
@@ -219,6 +213,10 @@ function mergeSettings(value: unknown): Settings {
       value.cardBack === "midnight" || value.cardBack === "ember" || value.cardBack === "spruce"
         ? value.cardBack
         : DEFAULT_SETTINGS.cardBack,
+    cardFace:
+      value.cardFace === "system" || value.cardFace === "classic" || value.cardFace === "dark"
+        ? value.cardFace
+        : DEFAULT_SETTINGS.cardFace,
     gameScale: normalizeGameScale(value.gameScale),
     gameScaleMode: isGameScaleMode(value.gameScaleMode) ? value.gameScaleMode : DEFAULT_SETTINGS.gameScaleMode,
     reducedMotion: typeof value.reducedMotion === "boolean" ? value.reducedMotion : DEFAULT_SETTINGS.reducedMotion
@@ -235,7 +233,7 @@ function normalizeGameScale(value: unknown): number {
 }
 
 function applyCompletedGame(stats: StatsPayload, record: CompletedGameInput): StatsPayload {
-  const rollups = [...stats.rollups];
+  const rollups = normalizeStats(stats).rollups;
   const allRollup = upsertRollup(rollups, "all", "all");
   const difficultyRollup = upsertRollup(rollups, "difficulty", record.difficulty);
 
@@ -243,6 +241,60 @@ function applyCompletedGame(stats: StatsPayload, record: CompletedGameInput): St
   updateRollup(difficultyRollup, record);
 
   return { rollups };
+}
+
+function normalizeStats(value: unknown): StatsPayload {
+  if (!isRecord(value) || !Array.isArray(value.rollups)) {
+    return cloneDefaultStats();
+  }
+
+  const rollups = value.rollups.flatMap((rollup) => {
+    const normalized = normalizeRollup(rollup);
+    return normalized === null ? [] : [normalized];
+  });
+
+  if (!rollups.some((rollup) => rollup.scope === "all" && rollup.difficulty === "all")) {
+    rollups.unshift(createEmptyRollup("all", "all"));
+  }
+
+  return { rollups };
+}
+
+function normalizeRollup(value: unknown): StatsRollup | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const scope = value.scope === "all" || value.scope === "difficulty" ? value.scope : null;
+
+  if (scope === null) {
+    return null;
+  }
+
+  const difficulty = scope === "all" ? "all" : isDifficulty(value.difficulty) ? value.difficulty : null;
+
+  if (difficulty === null) {
+    return null;
+  }
+
+  return {
+    scope,
+    difficulty,
+    gamesPlayed: normalizeCount(value.gamesPlayed),
+    gamesWon: normalizeCount(value.gamesWon),
+    gamesAbandoned: normalizeCount(value.gamesAbandoned),
+    bestScore: normalizeOptionalInteger(value.bestScore),
+    bestTimeMs: normalizeOptionalInteger(value.bestTimeMs),
+    totalScore: normalizeInteger(value.totalScore),
+    totalMoves: normalizeCount(value.totalMoves),
+    totalElapsedMs: normalizeCount(value.totalElapsedMs)
+  };
+}
+
+function cloneDefaultStats(): StatsPayload {
+  return {
+    rollups: DEFAULT_STATS.rollups.map((rollup) => ({ ...rollup }))
+  };
 }
 
 function upsertRollup(
@@ -256,7 +308,13 @@ function upsertRollup(
     return existing;
   }
 
-  const next: StatsRollup = {
+  const next = createEmptyRollup(scope, difficulty);
+  rollups.push(next);
+  return next;
+}
+
+function createEmptyRollup(scope: StatsRollup["scope"], difficulty: Difficulty | "all"): StatsRollup {
+  return {
     scope,
     difficulty,
     gamesPlayed: 0,
@@ -264,15 +322,15 @@ function upsertRollup(
     gamesAbandoned: 0,
     bestScore: null,
     bestTimeMs: null,
+    totalScore: 0,
     totalMoves: 0,
     totalElapsedMs: 0
   };
-  rollups.push(next);
-  return next;
 }
 
 function updateRollup(rollup: StatsRollup, record: CompletedGameInput): void {
   rollup.gamesPlayed += 1;
+  rollup.totalScore += record.score;
   rollup.totalMoves += record.moves;
   rollup.totalElapsedMs += record.elapsedMs;
 
@@ -307,6 +365,30 @@ function writeJson(key: string, value: unknown): void {
 
 function isDifficulty(value: unknown): value is Difficulty {
   return value === "one-suit" || value === "two-suit" || value === "four-suit";
+}
+
+function normalizeCount(value: unknown): number {
+  return Math.max(0, normalizeInteger(value));
+}
+
+function normalizeInteger(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.trunc(value);
+}
+
+function normalizeOptionalInteger(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return Math.trunc(value);
 }
 
 function isGameScaleMode(value: unknown): value is Settings["gameScaleMode"] {

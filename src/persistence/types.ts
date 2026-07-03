@@ -2,12 +2,14 @@ import type { Difficulty, GameState } from "../game/types";
 
 export type ThemePreference = "system" | "light" | "dark";
 export type CardBack = "spruce" | "midnight" | "ember";
+export type CardFaceTheme = "system" | "classic" | "dark";
 export type GameScaleMode = "auto" | "manual";
 
 export interface Settings {
   theme: ThemePreference;
   difficulty: Difficulty;
   cardBack: CardBack;
+  cardFace: CardFaceTheme;
   gameScale: number;
   gameScaleMode: GameScaleMode;
   reducedMotion: boolean;
@@ -39,6 +41,7 @@ export interface StatsRollup {
   gamesAbandoned: number;
   bestScore: number | null;
   bestTimeMs: number | null;
+  totalScore: number;
   totalMoves: number;
   totalElapsedMs: number;
 }
@@ -66,6 +69,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "system",
   difficulty: "one-suit",
   cardBack: "spruce",
+  cardFace: "system",
   gameScale: GAME_SCALE.default,
   gameScaleMode: "auto",
   reducedMotion: false
@@ -81,6 +85,7 @@ export const DEFAULT_STATS: StatsPayload = {
       gamesAbandoned: 0,
       bestScore: null,
       bestTimeMs: null,
+      totalScore: 0,
       totalMoves: 0,
       totalElapsedMs: 0
     }

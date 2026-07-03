@@ -40,6 +40,7 @@ describe("browser persistence fallback", () => {
       theme: "dark",
       difficulty: "four-suit",
       cardBack: "ember",
+      cardFace: "dark",
       gameScale: 85,
       gameScaleMode: "manual",
       reducedMotion: true
@@ -50,6 +51,7 @@ describe("browser persistence fallback", () => {
       theme: "dark",
       difficulty: "four-suit",
       cardBack: "ember",
+      cardFace: "dark",
       gameScale: 85,
       gameScaleMode: "manual",
       reducedMotion: true
@@ -67,6 +69,7 @@ describe("browser persistence fallback", () => {
       theme: "dark",
       difficulty: "two-suit",
       cardBack: "midnight",
+      cardFace: "dark",
       gameScale: 90,
       gameScaleMode: "auto",
       reducedMotion: true
@@ -75,6 +78,7 @@ describe("browser persistence fallback", () => {
     const loaded = await loadAppState();
     expect(loaded.settings.theme).toBe("dark");
     expect(loaded.settings.difficulty).toBe("two-suit");
+    expect(loaded.settings.cardFace).toBe("dark");
   });
 
   it("explains update checks are desktop-only when Spider update commands are unavailable", async () => {
@@ -134,6 +138,7 @@ describe("browser persistence fallback", () => {
         theme: "dark",
         difficulty: "one-suit",
         cardBack: "spruce",
+        cardFace: "dark",
         gameScale: 999,
         gameScaleMode: "auto",
         reducedMotion: false
@@ -148,6 +153,7 @@ describe("browser persistence fallback", () => {
         theme: "dark",
         difficulty: "one-suit",
         cardBack: "spruce",
+        cardFace: "dark",
         gameScale: 120,
         gameScaleMode: "auto",
         reducedMotion: false
@@ -168,6 +174,41 @@ describe("browser persistence fallback", () => {
 
     expect((await loadAppState()).settings.gameScale).toBe(100);
     expect((await loadAppState()).settings.gameScaleMode).toBe("auto");
+    expect((await loadAppState()).settings.cardFace).toBe("system");
+  });
+
+  it("migrates the first dark-card implementation's default light value to theme matching", async () => {
+    localStorage.setItem(
+      "spider.settings",
+      JSON.stringify({
+        theme: "dark",
+        difficulty: "one-suit",
+        cardBack: "spruce",
+        cardFace: "light",
+        gameScale: 90,
+        gameScaleMode: "auto",
+        reducedMotion: false
+      })
+    );
+
+    expect((await loadAppState()).settings.cardFace).toBe("system");
+  });
+
+  it("normalizes invalid card face themes to theme matching", async () => {
+    localStorage.setItem(
+      "spider.settings",
+      JSON.stringify({
+        theme: "dark",
+        difficulty: "one-suit",
+        cardBack: "spruce",
+        cardFace: "glow",
+        gameScale: 90,
+        gameScaleMode: "auto",
+        reducedMotion: false
+      })
+    );
+
+    expect((await loadAppState()).settings.cardFace).toBe("system");
   });
 
   it("normalizes invalid game scale modes to auto", async () => {
@@ -177,6 +218,7 @@ describe("browser persistence fallback", () => {
         theme: "dark",
         difficulty: "one-suit",
         cardBack: "spruce",
+        cardFace: "dark",
         gameScale: 90,
         gameScaleMode: "giant",
         reducedMotion: false
@@ -184,6 +226,32 @@ describe("browser persistence fallback", () => {
     );
 
     expect((await loadAppState()).settings.gameScaleMode).toBe("auto");
+  });
+
+  it("normalizes legacy stats without lifetime scores", async () => {
+    localStorage.setItem(
+      "spider.stats",
+      JSON.stringify({
+        rollups: [
+          {
+            scope: "all",
+            difficulty: "all",
+            gamesPlayed: 1,
+            gamesWon: 1,
+            gamesAbandoned: 0,
+            bestScore: 612,
+            bestTimeMs: 120_000,
+            totalMoves: 88,
+            totalElapsedMs: 120_000
+          }
+        ]
+      })
+    );
+
+    const stats = (await loadAppState()).stats;
+
+    expect(stats.rollups[0].totalScore).toBe(0);
+    expect(stats.rollups[0].gamesPlayed).toBe(1);
   });
 
   it("records completed games into aggregate stats", async () => {
@@ -203,8 +271,10 @@ describe("browser persistence fallback", () => {
 
     expect(all?.gamesPlayed).toBe(1);
     expect(all?.gamesWon).toBe(1);
+    expect(all?.totalScore).toBe(612);
     expect(oneSuit?.bestScore).toBe(612);
     expect(oneSuit?.bestTimeMs).toBe(120_000);
+    expect(oneSuit?.totalScore).toBe(612);
   });
 
   it("clears active games separately from full local reset", async () => {
@@ -217,6 +287,7 @@ describe("browser persistence fallback", () => {
       theme: "dark",
       difficulty: "two-suit",
       cardBack: "midnight",
+      cardFace: "dark",
       gameScale: 95,
       gameScaleMode: "auto",
       reducedMotion: false
