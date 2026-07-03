@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
+    "perf": "SPIDER_PERF=1 vitest run src/performance.test.tsx --reporter=default",
     "verify:workflows": "node scripts/verify-workflow-actions.mjs",
     "test": "vitest run",
     "test:watch": "vitest",

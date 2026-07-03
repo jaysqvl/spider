@@ -2,27 +2,44 @@ import {
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type Ref,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState
 } from "react";
-import { CheckCircle2, ShieldAlert, Trophy } from "lucide-react";
+import {
+  BarChart3,
+  CheckCircle2,
+  Download,
+  Info,
+  Lightbulb,
+  Menu,
+  Play,
+  Redo2,
+  RotateCcw,
+  Settings as SettingsIcon,
+  ShieldAlert,
+  Undo2
+} from "lucide-react";
 import {
   canDealStock,
   canMoveRun,
   dealStock,
+  findAutoMove,
   findHint,
+  findRunBlocker,
   moveCards,
   newGame,
   redo,
   restartGame,
   undo
 } from "./game/engine";
-import { DIFFICULTIES, type Card, type CardMove, type Difficulty, type GameState } from "./game/types";
-import { CardFace, CardView } from "./components/CardView";
+import { DIFFICULTIES, SUITS, type Card, type CardMove, type Difficulty, type GameState, type Suit } from "./game/types";
+import { CardFace, CardView, SuitMark } from "./components/CardView";
+import { IconButton } from "./components/IconButton";
 import { Modal } from "./components/Modal";
-import { Toolbar } from "./components/Toolbar";
 import {
   checkForUpdates,
   installAvailableUpdate,
@@ -39,6 +56,7 @@ import {
   DEFAULT_STATS,
   GAME_SCALE,
   type CardBack,
+  type CardFaceTheme,
   type Settings,
   type StatsPayload,
   type StatsRollup,
@@ -51,25 +69,52 @@ const DRAG_THRESHOLD_PX = 6;
 const BASE_CARD_MAX_WIDTH = 92;
 const DEFAULT_VISUAL_SCALE_MULTIPLIER = 1.3;
 const DEAL_ANIMATION_DURATION_MS = 620;
-const DEAL_ANIMATION_STAGGER_MS = 26;
+const DEAL_ANIMATION_STAGGER_MS = 38;
 const TABLEAU_COLUMN_COUNT = 10;
 const CARD_HEIGHT_RATIO = 1.38;
-const CARD_STACK_VISIBLE_RATIO = 0.32;
-const TOP_ROW_HEIGHT_RATIO = 0.83;
+const CARD_STACK_VISIBLE_RATIO = 0.28;
+const MIN_CARD_STACK_REVEAL_PX = 10;
+const AUTO_FIT_REFERENCE_COLUMN_HEIGHT = 16;
+const FACE_DOWN_REVEAL_RATIO = 0.13;
+const FACE_UP_REVEAL_RATIO = 0.33;
+const FACE_UP_REVEAL_MIN_RATIO = 0.27;
+const FACE_UP_REVEAL_FLOOR_RATIO = 0.22;
+const FACE_DOWN_REVEAL_MIN_PX = 10;
+const FACE_DOWN_REVEAL_MAX_PX = 34;
+const FACE_UP_REVEAL_MIN_PX = 46;
+const FACE_UP_REVEAL_MAX_PX = 70;
+const FACE_UP_REVEAL_FLOOR_PX = 34;
+const FACE_DOWN_REVEAL_FLOOR_PX = 8;
 const TABLEAU_FIT_SAFETY_PX = 2;
-const TOOLBAR_OPEN_DELAY_MS = 60;
-const TOOLBAR_CLOSE_DELAY_MS = 2400;
+const MAX_CARD_WIDTH_TO_TABLEAU_HEIGHT_RATIO = 0.28;
+const SIDE_RESOURCE_MIN_WIDTH_PX = 148;
+const SIDE_RESOURCE_MAX_WIDTH_PX = 190;
+const SIDE_RESOURCE_WIDTH_RATIO = 1.35;
+const SIDE_RESOURCE_ENTER_GAP_PX = 18;
+const SIDE_RESOURCE_ENTER_HEIGHT_PX = 740;
 const TOAST_VISIBLE_MS = 5200;
 const UPDATE_TOAST_ID = "update-status";
+const BLOCKED_RUN_FEEDBACK_MS = 1100;
+const MOVE_ANIMATION_DURATION_MS = 260;
+const MOVE_ANIMATION_EASING = "cubic-bezier(0.2, 0.82, 0.2, 1)";
+const MOVE_ANIMATION_THRESHOLD_PX = 1.5;
+const MOVE_COVER_DETAIL_SETTLE_MS = 48;
 
 type ModalName = "settings" | "stats" | "about" | "reset" | null;
 type ToastTone = "info" | "success" | "error";
+export type BoardControlLayout = "bottom" | "side";
 
 interface ToastMessage {
   id: string;
   title: string;
   body: string;
   tone: ToastTone;
+}
+
+interface DealAnimationConfig {
+  order: number;
+  fromX: number;
+  fromY: number;
 }
 
 interface DragPreviewState {
@@ -85,6 +130,37 @@ interface DragPreviewState {
   overColumn: number | null;
 }
 
+export interface AutoFitMetrics {
+  cardWidth: number | null;
+  stackVisibleRatio: number;
+  availableHeight: number | null;
+}
+
+const DEFAULT_AUTO_FIT_METRICS: AutoFitMetrics = {
+  cardWidth: null,
+  stackVisibleRatio: CARD_STACK_VISIBLE_RATIO,
+  availableHeight: null
+};
+
+interface BlockedRunFeedback {
+  fromColumn: number;
+  startIndex: number;
+  blockerIndex: number;
+  endIndex: number;
+}
+
+interface MoveAnimationSnapshot {
+  cardId: string;
+  element: HTMLElement;
+  beforeRect: DOMRect;
+}
+
+interface CompletedSuitSummary {
+  suit: Suit;
+  completed: number;
+  total: number;
+}
+
 export default function App() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [game, setGame] = useState<GameState>(() => newGame(DEFAULT_SETTINGS.difficulty, "loading"));
@@ -92,25 +168,37 @@ export default function App() {
   const [modal, setModal] = useState<ModalName>(null);
   const [selectedMove, setSelectedMove] = useState<Omit<CardMove, "toColumn"> | null>(null);
   const [hintMove, setHintMove] = useState<CardMove | null>(null);
+  const [blockedRun, setBlockedRun] = useState<BlockedRunFeedback | null>(null);
   const [dragPreview, setDragPreview] = useState<DragPreviewState | null>(null);
-  const [dealAnimationOrders, setDealAnimationOrders] = useState<Record<string, number>>({});
+  const [dealAnimations, setDealAnimations] = useState<Record<string, DealAnimationConfig>>({});
+  const [heldCoveredCardIds, setHeldCoveredCardIds] = useState<ReadonlySet<string>>(() => new Set());
   const [message, setMessage] = useState("Ready.");
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [appVersion, setAppVersion] = useState(packageJson.version);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-  const [isToolbarOpen, setIsToolbarOpen] = useState(false);
+  const [autoFitMetrics, setAutoFitMetrics] = useState<AutoFitMetrics>(DEFAULT_AUTO_FIT_METRICS);
+  const [controlLayout, setControlLayout] = useState<BoardControlLayout>("bottom");
   const [isLoaded, setIsLoaded] = useState(false);
   const gameRef = useRef(game);
+  const selectedMoveRef = useRef(selectedMove);
   const dragPreviewRef = useRef<DragPreviewState | null>(null);
+  const dragPreviewElementRef = useRef<HTMLDivElement | null>(null);
+  const dragFrameRef = useRef<number | null>(null);
+  const moveAnimationFrameRef = useRef<number | null>(null);
   const lastPointerDownAtRef = useRef(0);
   const suppressNextClickRef = useRef(false);
+  const saveGameTimerRef = useRef<number | null>(null);
   const dealAnimationTimerRef = useRef<number | null>(null);
-  const toolbarOpenTimerRef = useRef<number | null>(null);
-  const toolbarCloseTimerRef = useRef<number | null>(null);
+  const dealAnimationFrameRef = useRef<number | null>(null);
+  const blockedRunTimerRef = useRef<number | null>(null);
+  const coverDetailReleaseTimersRef = useRef(new Map<string, number>());
   const toastTimersRef = useRef(new Map<string, number>());
   const playSurfaceRef = useRef<HTMLElement | null>(null);
+  const tableauRef = useRef<HTMLDivElement | null>(null);
+  const stockDeckRef = useRef<HTMLSpanElement | null>(null);
   const recordedCompletionKeys = useRef(new Set<string>());
   const settingsRef = useRef(settings);
+  const controlLayoutRef = useRef<BoardControlLayout>("bottom");
 
   useEffect(() => {
     let cancelled = false;
@@ -145,12 +233,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    selectedMoveRef.current = selectedMove;
+  }, [selectedMove]);
+
+  useEffect(() => {
     const root = document.documentElement;
     const media = window.matchMedia?.("(prefers-color-scheme: dark)");
 
     const applyTheme = () => {
       const effectiveTheme = settings.theme === "system" ? (media?.matches ? "dark" : "light") : settings.theme;
+      const effectiveCardFace =
+        settings.cardFace === "system" ? effectiveTheme : settings.cardFace === "dark" ? "dark" : "light";
       root.dataset.theme = effectiveTheme;
+      root.dataset.cardFace = effectiveCardFace;
       root.dataset.motion = settings.reducedMotion ? "reduced" : "full";
       applyGameScale(root, settings);
     };
@@ -170,25 +265,66 @@ export default function App() {
       return;
     }
 
-    const updateFit = () => applyAutoFitScale(surface, settings, gameRef.current);
+    let fitFrame: number | null = null;
+
+    const updateFit = () => {
+      fitFrame = null;
+      const bottomLayoutMetrics = applyAutoFitScale(surface, settings, undefined, undefined, "bottom");
+
+      if (bottomLayoutMetrics) {
+        const nextControlLayout = getBoardControlLayout(surface, bottomLayoutMetrics);
+        const nextMetrics =
+          nextControlLayout === "side"
+            ? applyAutoFitScale(surface, settings, undefined, undefined, "side") ?? bottomLayoutMetrics
+            : bottomLayoutMetrics;
+
+        setAutoFitMetrics((current) => (areAutoFitMetricsEqual(current, nextMetrics) ? current : nextMetrics));
+
+        if (nextControlLayout !== controlLayoutRef.current) {
+          controlLayoutRef.current = nextControlLayout;
+          setControlLayout(nextControlLayout);
+          fitFrame = window.requestAnimationFrame(updateFit);
+        }
+      }
+    };
+    const scheduleFit = () => {
+      if (fitFrame !== null) {
+        return;
+      }
+
+      fitFrame = window.requestAnimationFrame(updateFit);
+    };
+    const cancelScheduledFit = () => {
+      if (fitFrame === null) {
+        return;
+      }
+
+      window.cancelAnimationFrame(fitFrame);
+      fitFrame = null;
+    };
+
     updateFit();
 
     const ResizeObserverCtor = (window as Window & { ResizeObserver?: typeof ResizeObserver }).ResizeObserver;
 
     if (!ResizeObserverCtor) {
-      window.addEventListener("resize", updateFit);
-      return () => window.removeEventListener("resize", updateFit);
+      window.addEventListener("resize", scheduleFit);
+      return () => {
+        cancelScheduledFit();
+        window.removeEventListener("resize", scheduleFit);
+      };
     }
 
-    const observer = new ResizeObserverCtor(updateFit);
+    const observer = new ResizeObserverCtor(scheduleFit);
     observer.observe(surface);
-    window.addEventListener("resize", updateFit);
+    window.addEventListener("resize", scheduleFit);
 
     return () => {
+      cancelScheduledFit();
       observer.disconnect();
-      window.removeEventListener("resize", updateFit);
+      window.removeEventListener("resize", scheduleFit);
     };
-  }, [game.tableau, settings]);
+  }, [settings]);
 
   useEffect(() => {
     if (!isLoaded) {
@@ -209,38 +345,8 @@ export default function App() {
   }, [isLoaded]);
 
   useEffect(() => {
-    let lastTick = Date.now();
-
-    const tick = () => {
-      const now = Date.now();
-      const delta = now - lastTick;
-      lastTick = now;
-
-      if (document.hidden || gameRef.current.status !== "playing") {
-        return;
-      }
-
-      setGame((current) => {
-        if (current.status !== "playing") {
-          return current;
-        }
-
-        const next = {
-          ...current,
-          elapsedMs: current.elapsedMs + delta
-        };
-        gameRef.current = next;
-        return next;
-      });
-    };
-
-    const interval = window.setInterval(tick, 1000);
-    return () => window.clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
     const saveCurrentGame = () => {
-      void saveActiveGame(gameRef.current);
+      flushActiveGameSave();
     };
 
     window.addEventListener("beforeunload", saveCurrentGame);
@@ -248,17 +354,48 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    return () => clearDealAnimation(false);
+    return () => {
+      clearQueuedActiveGameSave();
+      clearDealAnimation(false);
+      clearMoveAnimationFrame();
+      clearCoveredCardDetailHolds(false);
+    };
   }, []);
 
   useEffect(() => {
     return () => {
-      clearToolbarTimers();
+      clearBlockedRunFeedback(false);
       clearToastTimers();
     };
   }, []);
 
   useEffect(() => {
+    const cancelDragFrame = () => {
+      if (dragFrameRef.current !== null) {
+        window.cancelAnimationFrame(dragFrameRef.current);
+        dragFrameRef.current = null;
+      }
+    };
+
+    const queueDragFrame = () => {
+      if (dragFrameRef.current !== null) {
+        return;
+      }
+
+      dragFrameRef.current = window.requestAnimationFrame(() => {
+        dragFrameRef.current = null;
+        const nextDrag = dragPreviewRef.current;
+
+        if (nextDrag?.hasMoved) {
+          updateDragPreviewPosition(nextDrag);
+        }
+
+        setDragPreview((currentDrag) =>
+          shouldRenderDragPreviewUpdate(currentDrag, nextDrag) ? nextDrag : currentDrag
+        );
+      });
+    };
+
     const updateDrag = (clientX: number, clientY: number, pointerId: number | null, event: Event) => {
       const currentDrag = dragPreviewRef.current;
 
@@ -284,7 +421,7 @@ export default function App() {
       }
 
       dragPreviewRef.current = nextDrag;
-      setDragPreview(nextDrag);
+      queueDragFrame();
 
       if (hasMoved) {
         event.preventDefault();
@@ -298,6 +435,7 @@ export default function App() {
         return;
       }
 
+      cancelDragFrame();
       dragPreviewRef.current = null;
       setDragPreview(null);
 
@@ -349,11 +487,58 @@ export default function App() {
       window.removeEventListener("pointercancel", finishPointerDrag);
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", finishMouseDrag);
+      cancelDragFrame();
     };
   }, []);
 
   const stockDealsRemaining = game.stock.length;
+  const completedSuitSummaries = useMemo(() => getCompletedSuitSummaries(game), [game.completed, game.difficulty]);
+  const tableauRenderData = useMemo(
+    () =>
+      game.tableau.map((column) => ({
+        movableRunStarts: getMovableRunStarts(column),
+        cardReveals: getColumnCardReveals(column, autoFitMetrics)
+      })),
+    [game.tableau, autoFitMetrics]
+  );
   const allStats = useMemo(() => getRollup(stats, "all"), [stats]);
+  const selectedMovingCard =
+    selectedMove === null
+      ? null
+      : game.tableau[selectedMove.fromColumn]?.[selectedMove.startIndex] ?? null;
+  const handleElapsedTick = useCallback((elapsedMs: number) => {
+    const current = gameRef.current;
+
+    if (current.status !== "playing" || current.elapsedMs === elapsedMs) {
+      return;
+    }
+
+    gameRef.current = {
+      ...current,
+      elapsedMs
+    };
+  }, []);
+  const handleCardClickEvent = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
+    const position = readCardEventPosition(event.currentTarget);
+
+    if (position) {
+      handleCardClick(position.columnIndex, position.cardIndex, event);
+    }
+  }, []);
+  const handleCardMouseDownEvent = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
+    const position = readCardEventPosition(event.currentTarget);
+
+    if (position) {
+      handleMouseDown(position.columnIndex, position.cardIndex, event);
+    }
+  }, []);
+  const handleCardPointerDownEvent = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
+    const position = readCardEventPosition(event.currentTarget);
+
+    if (position) {
+      handlePointerDown(position.columnIndex, position.cardIndex, event);
+    }
+  }, []);
 
   function setGameAndRef(next: GameState): void {
     gameRef.current = next;
@@ -367,16 +552,40 @@ export default function App() {
 
   function persistGame(next: GameState, previous = gameRef.current): void {
     clearDealAnimation();
+    clearBlockedRunFeedback();
+    clearCoveredCardDetailHolds();
     setGameAndRef(next);
-    setSelectedMove(null);
-    setHintMove(null);
-    void saveActiveGame(next).catch((error: unknown) => {
-      console.warn("Unable to save active game.", error);
-    });
+    setSelectedMove((current) => (current === null ? current : null));
+    setHintMove((current) => (current === null ? current : null));
+    queueActiveGameSave();
 
     if (previous.status !== "won" && next.status === "won") {
       void recordOutcome(next, "won");
       setMessage("Game won.");
+    }
+  }
+
+  function queueActiveGameSave(): void {
+    clearQueuedActiveGameSave();
+    saveGameTimerRef.current = window.setTimeout(() => {
+      saveGameTimerRef.current = null;
+      void saveActiveGame(gameRef.current).catch((error: unknown) => {
+        console.warn("Unable to save active game.", error);
+      });
+    }, 0);
+  }
+
+  function flushActiveGameSave(): void {
+    clearQueuedActiveGameSave();
+    void saveActiveGame(gameRef.current).catch((error: unknown) => {
+      console.warn("Unable to save active game.", error);
+    });
+  }
+
+  function clearQueuedActiveGameSave(): void {
+    if (saveGameTimerRef.current !== null) {
+      window.clearTimeout(saveGameTimerRef.current);
+      saveGameTimerRef.current = null;
     }
   }
 
@@ -439,10 +648,11 @@ export default function App() {
 
   function handleRestart(): void {
     recordAbandonIfNeeded();
-    const next = restartGame(gameRef.current);
+    const selectedDifficulty = settingsRef.current.difficulty;
+    const next = gameRef.current.difficulty === selectedDifficulty ? restartGame(gameRef.current) : newGame(selectedDifficulty);
     persistGame(next);
     scheduleDealAnimation(getInitialDealAnimationOrders(next.tableau));
-    setMessage("Game restarted.");
+    setMessage(`${DIFFICULTIES[next.difficulty].label} game restarted.`);
   }
 
   function handleUndo(): void {
@@ -459,11 +669,13 @@ export default function App() {
 
   function handleHint(): void {
     const hint = findHint(gameRef.current);
+    clearBlockedRunFeedback();
     setMessage(hint.message);
     setHintMove(hint.type === "move" ? hint.move : null);
   }
 
   function handleDeal(): void {
+    const coveredCardIds = getTopTableauCardIds(gameRef.current);
     const outcome = dealStock(gameRef.current);
 
     if (!outcome.ok) {
@@ -472,22 +684,36 @@ export default function App() {
     }
 
     persistGame(outcome.state);
-    scheduleDealAnimation(getStockDealAnimationOrders(outcome.state.tableau));
+    const dealOrders = getStockDealAnimationOrders(outcome.state.tableau);
+
+    if (!settingsRef.current.reducedMotion) {
+      holdCoveredCardDetails(coveredCardIds, getDealAnimationHoldDuration(dealOrders));
+    }
+
+    scheduleDealAnimation(dealOrders);
     setMessage(outcome.completedSequences > 0 ? "Sequence cleared." : "Stock dealt.");
   }
 
   function handleMove(move: CardMove): void {
-    applyOutcome(moveCards(gameRef.current, move), "Move completed.");
+    applyMove(move, "Move completed.");
   }
 
-  function applyOutcome(outcome: ReturnType<typeof moveCards>, successMessage: string): void {
+  function applyMove(move: CardMove, successMessage: string): boolean {
+    const current = gameRef.current;
+    const movingCardIds = getMovingCardIds(current, move);
+    const moveAnimationSnapshots = captureMoveAnimationSnapshots(movingCardIds);
+    const coverDetailCardIds = getDestinationCoverDetailCardIds(current, move);
+    const outcome = moveCards(current, move);
+
     if (!outcome.ok) {
       setMessage(outcome.reason);
-      return;
+      return false;
     }
 
     persistGame(outcome.state);
+    scheduleMoveAnimation(moveAnimationSnapshots, coverDetailCardIds);
     setMessage(outcome.completedSequences > 0 ? "Sequence cleared." : successMessage);
+    return true;
   }
 
   function consumeSuppressedClick(): boolean {
@@ -508,33 +734,43 @@ export default function App() {
 
     const current = gameRef.current;
     const column = current.tableau[columnIndex];
+    const move = { fromColumn: columnIndex, startIndex: cardIndex };
 
-    if (selectedMove) {
-      if (selectedMove.fromColumn === columnIndex && selectedMove.startIndex === cardIndex) {
+    const activeSelectedMove = selectedMoveRef.current;
+
+    if (activeSelectedMove) {
+      if (activeSelectedMove.fromColumn === columnIndex && activeSelectedMove.startIndex === cardIndex) {
         setSelectedMove(null);
+        clearBlockedRunFeedback();
         return;
       }
 
-      const outcome = moveCards(current, {
-        ...selectedMove,
+      const didMove = applyMove({
+        ...activeSelectedMove,
         toColumn: columnIndex
-      });
+      }, "Move completed.");
 
-      if (outcome.ok) {
-        persistGame(outcome.state);
-        setMessage(outcome.completedSequences > 0 ? "Sequence cleared." : "Move completed.");
+      if (didMove) {
         return;
       }
     }
 
     if (canMoveRun(column, cardIndex)) {
-      setSelectedMove({ fromColumn: columnIndex, startIndex: cardIndex });
+      const autoMove = findAutoMove(current, move);
+
+      if (autoMove) {
+        applyMove(autoMove, "Move completed.");
+        return;
+      }
+
+      clearBlockedRunFeedback();
+      setSelectedMove(move);
       setHintMove(null);
-      setMessage("Run selected.");
+      setMessage("No automatic destination. Run selected.");
       return;
     }
 
-    setMessage("That card cannot move as a run.");
+    flashBlockedRun(columnIndex, cardIndex);
   }
 
   function handleColumnClick(columnIndex: number): void {
@@ -542,11 +778,13 @@ export default function App() {
       return;
     }
 
-    if (!selectedMove) {
+    const activeSelectedMove = selectedMoveRef.current;
+
+    if (!activeSelectedMove) {
       return;
     }
 
-    handleMove({ ...selectedMove, toColumn: columnIndex });
+    handleMove({ ...activeSelectedMove, toColumn: columnIndex });
   }
 
   function handleMouseDown(
@@ -588,6 +826,7 @@ export default function App() {
       return;
     }
 
+    clearBlockedRunFeedback();
     const move = { fromColumn: columnIndex, startIndex: cardIndex };
     const rect = target.getBoundingClientRect();
     const dragState = {
@@ -607,14 +846,66 @@ export default function App() {
     setDragPreview(dragState);
   }
 
+  function updateDragPreviewPosition(preview: DragPreviewState): void {
+    if (!dragPreviewElementRef.current) {
+      return;
+    }
+
+    dragPreviewElementRef.current.style.transform = getDragPreviewTransform(preview);
+  }
+
+  function flashBlockedRun(columnIndex: number, cardIndex: number): void {
+    const column = gameRef.current.tableau[columnIndex] ?? [];
+    const blocker = findRunBlocker(column, cardIndex);
+    const blockerIndex = blocker?.index ?? cardIndex;
+
+    clearBlockedRunFeedback();
+    setSelectedMove(null);
+    setHintMove(null);
+
+    setBlockedRun({
+      fromColumn: columnIndex,
+      startIndex: cardIndex,
+      blockerIndex,
+      endIndex: Math.max(blockerIndex, column.length - 1)
+    });
+
+    blockedRunTimerRef.current = window.setTimeout(() => {
+      blockedRunTimerRef.current = null;
+      setBlockedRun(null);
+    }, BLOCKED_RUN_FEEDBACK_MS);
+
+    setMessage(
+      blocker?.kind === "face-down"
+        ? "Face-down attached cards cannot move."
+        : "That card is pinned by incompatible attached cards."
+    );
+  }
+
+  function clearBlockedRunFeedback(resetState = true): void {
+    if (blockedRunTimerRef.current !== null) {
+      window.clearTimeout(blockedRunTimerRef.current);
+      blockedRunTimerRef.current = null;
+    }
+
+    if (resetState) {
+      setBlockedRun((current) => (current === null ? current : null));
+    }
+  }
+
   function clearDealAnimation(resetState = true): void {
     if (dealAnimationTimerRef.current !== null) {
       window.clearTimeout(dealAnimationTimerRef.current);
       dealAnimationTimerRef.current = null;
     }
 
+    if (dealAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(dealAnimationFrameRef.current);
+      dealAnimationFrameRef.current = null;
+    }
+
     if (resetState) {
-      setDealAnimationOrders({});
+      setDealAnimations((current) => (Object.keys(current).length === 0 ? current : {}));
     }
   }
 
@@ -627,60 +918,151 @@ export default function App() {
       return;
     }
 
-    setDealAnimationOrders(orders);
-    dealAnimationTimerRef.current = window.setTimeout(
-      () => clearDealAnimation(),
-      DEAL_ANIMATION_DURATION_MS + Math.max(...orderValues) * DEAL_ANIMATION_STAGGER_MS + 120
-    );
+    dealAnimationFrameRef.current = window.requestAnimationFrame(() => {
+      dealAnimationFrameRef.current = null;
+      const animations = measureDealAnimations(orders, stockDeckRef.current);
+
+      setDealAnimations(animations);
+      dealAnimationTimerRef.current = window.setTimeout(
+        () => clearDealAnimation(),
+        DEAL_ANIMATION_DURATION_MS + Math.max(...orderValues) * DEAL_ANIMATION_STAGGER_MS + 120
+      );
+    });
   }
 
-  function clearToolbarTimers(): void {
-    if (toolbarOpenTimerRef.current !== null) {
-      window.clearTimeout(toolbarOpenTimerRef.current);
-      toolbarOpenTimerRef.current = null;
-    }
-
-    if (toolbarCloseTimerRef.current !== null) {
-      window.clearTimeout(toolbarCloseTimerRef.current);
-      toolbarCloseTimerRef.current = null;
+  function clearMoveAnimationFrame(): void {
+    if (moveAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(moveAnimationFrameRef.current);
+      moveAnimationFrameRef.current = null;
     }
   }
 
-  function queueToolbarOpen(): void {
-    if (toolbarCloseTimerRef.current !== null) {
-      window.clearTimeout(toolbarCloseTimerRef.current);
-      toolbarCloseTimerRef.current = null;
-    }
+  function holdCoveredCardDetails(
+    cardIds: string[],
+    durationMs = MOVE_ANIMATION_DURATION_MS + MOVE_COVER_DETAIL_SETTLE_MS
+  ): void {
+    const uniqueCardIds = Array.from(new Set(cardIds));
 
-    if (toolbarOpenTimerRef.current !== null || isToolbarOpen) {
+    if (uniqueCardIds.length === 0) {
       return;
     }
 
-    toolbarOpenTimerRef.current = window.setTimeout(() => {
-      toolbarOpenTimerRef.current = null;
-      setIsToolbarOpen(true);
-    }, TOOLBAR_OPEN_DELAY_MS);
+    setHeldCoveredCardIds((current) => {
+      const next = new Set(current);
+
+      uniqueCardIds.forEach((cardId) => next.add(cardId));
+      return next;
+    });
+
+    uniqueCardIds.forEach((cardId) => {
+      const currentTimer = coverDetailReleaseTimersRef.current.get(cardId);
+
+      if (currentTimer !== undefined) {
+        window.clearTimeout(currentTimer);
+      }
+
+      const releaseTimer = window.setTimeout(() => {
+        releaseCoveredCardDetails([cardId]);
+      }, durationMs);
+
+      coverDetailReleaseTimersRef.current.set(cardId, releaseTimer);
+    });
   }
 
-  function openToolbarNow(): void {
-    clearToolbarTimers();
-    setIsToolbarOpen(true);
+  function releaseCoveredCardDetails(cardIds: string[]): void {
+    const uniqueCardIds = Array.from(new Set(cardIds));
+
+    if (uniqueCardIds.length === 0) {
+      return;
+    }
+
+    uniqueCardIds.forEach((cardId) => {
+      const currentTimer = coverDetailReleaseTimersRef.current.get(cardId);
+
+      if (currentTimer !== undefined) {
+        window.clearTimeout(currentTimer);
+        coverDetailReleaseTimersRef.current.delete(cardId);
+      }
+    });
+
+    setHeldCoveredCardIds((current) => {
+      if (uniqueCardIds.every((cardId) => !current.has(cardId))) {
+        return current;
+      }
+
+      const next = new Set(current);
+
+      uniqueCardIds.forEach((cardId) => next.delete(cardId));
+      return next;
+    });
   }
 
-  function scheduleToolbarClose(): void {
-    if (toolbarOpenTimerRef.current !== null) {
-      window.clearTimeout(toolbarOpenTimerRef.current);
-      toolbarOpenTimerRef.current = null;
+  function clearCoveredCardDetailHolds(resetState = true): void {
+    coverDetailReleaseTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    coverDetailReleaseTimersRef.current.clear();
+
+    if (resetState) {
+      setHeldCoveredCardIds((current) => (current.size === 0 ? current : new Set()));
+    }
+  }
+
+  function scheduleMoveAnimation(snapshots: MoveAnimationSnapshot[], coverDetailCardIds: string[]): void {
+    clearMoveAnimationFrame();
+
+    if (settingsRef.current.reducedMotion || snapshots.length === 0) {
+      return;
     }
 
-    if (toolbarCloseTimerRef.current !== null) {
-      window.clearTimeout(toolbarCloseTimerRef.current);
-    }
+    holdCoveredCardDetails(coverDetailCardIds);
 
-    toolbarCloseTimerRef.current = window.setTimeout(() => {
-      toolbarCloseTimerRef.current = null;
-      setIsToolbarOpen(false);
-    }, TOOLBAR_CLOSE_DELAY_MS);
+    moveAnimationFrameRef.current = window.requestAnimationFrame(() => {
+      moveAnimationFrameRef.current = null;
+      let connectedElementsByCardId: Map<string, HTMLElement> | null = null;
+      let startedAnimations = 0;
+
+      snapshots.forEach(({ cardId, element, beforeRect }, index) => {
+        const currentElement =
+          element.isConnected
+            ? element
+            : (connectedElementsByCardId ??= getTableauCardElementMap()).get(cardId);
+
+        if (!currentElement || typeof currentElement.animate !== "function") {
+          return;
+        }
+
+        const after = currentElement.getBoundingClientRect();
+        const deltaX = beforeRect.left - after.left;
+        const deltaY = beforeRect.top - after.top;
+
+        if (Math.hypot(deltaX, deltaY) < MOVE_ANIMATION_THRESHOLD_PX) {
+          return;
+        }
+
+        currentElement.classList.add("is-moving-card");
+        currentElement.style.setProperty("--moving-card-layer", String(1000 + index));
+        startedAnimations += 1;
+
+        const animation = currentElement.animate(
+          [
+            { transform: `translate3d(${deltaX}px, ${deltaY}px, 0)` },
+            { transform: "translate3d(0, 0, 0)" }
+          ],
+          {
+            duration: MOVE_ANIMATION_DURATION_MS,
+            easing: MOVE_ANIMATION_EASING
+          }
+        );
+
+        void animation.finished.finally(() => {
+          currentElement.classList.remove("is-moving-card");
+          currentElement.style.removeProperty("--moving-card-layer");
+        });
+      });
+
+      if (startedAnimations === 0) {
+        releaseCoveredCardDetails(coverDetailCardIds);
+      }
+    });
   }
 
   function clearToastTimers(): void {
@@ -802,78 +1184,80 @@ export default function App() {
 
   return (
     <main className="app-shell">
-      <div
-        className="toolbar-hotspot"
-        aria-hidden="true"
-        onPointerEnter={queueToolbarOpen}
-        onPointerMove={queueToolbarOpen}
-        onPointerLeave={scheduleToolbarClose}
-      />
-      <Toolbar
-        isOpen={isToolbarOpen}
-        game={game}
-        selectedDifficulty={settings.difficulty}
-        canInstallUpdate={Boolean(updateInfo)}
-        onOpen={openToolbarNow}
-        onClose={scheduleToolbarClose}
-        onDifficultyChange={(difficulty) => {
-          void handleDifficultyChange(difficulty);
-        }}
-        onNewGame={() => {
-          void handleNewGame();
-        }}
-        onRestart={() => {
-          void handleRestart();
-        }}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-        onHint={handleHint}
-        onDeal={handleDeal}
-        onSettings={() => setModal("settings")}
-        onStats={() => {
-          void loadStats().then(setStats);
-          setModal("stats");
-        }}
-        onAbout={() => setModal("about")}
-        onInstallUpdate={() => {
-          void handleInstallUpdate();
-        }}
-      />
+      <section
+        ref={playSurfaceRef}
+        className="play-surface"
+        data-control-layout={controlLayout}
+        aria-busy={!isLoaded}
+      >
+        <GameTopBar
+          game={game}
+          selectedDifficulty={settings.difficulty}
+          canInstallUpdate={Boolean(updateInfo)}
+          onDifficultyChange={(difficulty) => {
+            void handleDifficultyChange(difficulty);
+          }}
+          onRestart={() => {
+            void handleRestart();
+          }}
+          onSettings={() => setModal("settings")}
+          onStats={() => {
+            void loadStats().then(setStats);
+            setModal("stats");
+          }}
+          onAbout={() => setModal("about")}
+          onInstallUpdate={() => {
+            void handleInstallUpdate();
+          }}
+          onElapsedTick={handleElapsedTick}
+        />
 
-      <section className="score-strip" aria-label="Game status">
-        <Metric label="Score" value={String(game.score)} />
-        <Metric label="Moves" value={String(game.moves)} />
-        <Metric label="Time" value={formatDuration(game.elapsedMs)} />
-        <Metric label="Stock" value={`${stockDealsRemaining} deals`} />
-        <Metric label="Complete" value={`${game.completed.length}/8`} />
-      </section>
+        <div className="board-resource-zone" aria-label="Stock and completed sequences">
+          <div className="foundation-zone" aria-label="Completed sequences by suit">
+            {completedSuitSummaries.map((summary) => (
+              <div
+                key={summary.suit}
+                className={["foundation", `foundation--${summary.suit}`, summary.completed > 0 ? "is-filled" : null]
+                  .filter(Boolean)
+                  .join(" ")}
+                aria-label={`${suitLabel(summary.suit)} completed sequences: ${summary.completed} of ${summary.total}`}
+              >
+                <svg className="foundation__suit" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+                  <SuitMark suit={summary.suit} x={50} y={50} size={82} />
+                </svg>
+                <span className="foundation__count">
+                  {summary.completed}/{summary.total}
+                </span>
+              </div>
+            ))}
+          </div>
 
-      <section ref={playSurfaceRef} className="play-surface" aria-busy={!isLoaded}>
-        <div className="foundation-zone" aria-label="Completed sequences">
-          {Array.from({ length: 8 }, (_, index) => (
-            <div key={index} className={index < game.completed.length ? "foundation is-filled" : "foundation"}>
-              {index < game.completed.length ? <Trophy size={24} aria-hidden="true" /> : null}
-            </div>
-          ))}
+          <div className="stock-zone">
+            <button
+              type="button"
+              className="stock"
+              disabled={!canDealStock(game)}
+              onClick={handleDeal}
+              aria-label="Deal stock"
+              title="Deal stock"
+            >
+              <span ref={stockDeckRef} className={`stock__deck stock__deck--${settings.cardBack}`} />
+              <span className="stock__count">{stockDealsRemaining}</span>
+            </button>
+          </div>
         </div>
 
-        <div className="stock-zone">
-          <button
-            type="button"
-            className="stock"
-            disabled={!canDealStock(game)}
-            onClick={handleDeal}
-            aria-label="Deal stock"
-            title="Deal stock"
-          >
-            <span className={`stock__deck stock__deck--${settings.cardBack}`} />
-            <span>{stockDealsRemaining}</span>
-          </button>
-        </div>
-
-        <div className="tableau" aria-label="Tableau">
+        <div ref={tableauRef} className="tableau" aria-label="Tableau">
           {game.tableau.map((column, columnIndex) => {
             const isHintDestination = hintMove?.toColumn === columnIndex;
+            const isLegalDestination =
+              selectedMove !== null &&
+              selectedMovingCard !== null &&
+              selectedMove.fromColumn !== columnIndex &&
+              canPlaceMovingCardOnColumn(column, selectedMovingCard);
+            const columnRenderData = tableauRenderData[columnIndex];
+            const movableRunStarts = columnRenderData?.movableRunStarts ?? [];
+            const cardReveals = columnRenderData?.cardReveals ?? [];
 
             return (
               <div
@@ -882,6 +1266,7 @@ export default function App() {
                 className={[
                   "tableau-column",
                   isHintDestination ? "is-hint-destination" : "",
+                  isLegalDestination ? "is-legal-destination" : "",
                   dragPreview?.hasMoved && dragPreview.overColumn === columnIndex ? "is-drop-target" : ""
                 ].join(" ")}
                 onClick={() => handleColumnClick(columnIndex)}
@@ -891,38 +1276,70 @@ export default function App() {
                     const isSelected =
                       selectedMove?.fromColumn === columnIndex && selectedMove.startIndex === cardIndex;
                     const isHinted = hintMove?.fromColumn === columnIndex && hintMove.startIndex === cardIndex;
-                    const isMovable = canMoveRun(column, cardIndex);
+                    const isMovable = movableRunStarts[cardIndex] === true;
+                    const isBlockedColumn = blockedRun?.fromColumn === columnIndex;
+                    const isBlockedSource =
+                      Boolean(isBlockedColumn) && blockedRun?.startIndex === cardIndex;
+                    const isBlockedAttachment =
+                      Boolean(isBlockedColumn) &&
+                      blockedRun !== null &&
+                      cardIndex !== blockedRun.startIndex &&
+                      cardIndex >= blockedRun.blockerIndex &&
+                      cardIndex <= blockedRun.endIndex;
+                    const isBlockedBreak =
+                      Boolean(isBlockedColumn) && blockedRun?.blockerIndex === cardIndex;
+                    const isCovered = cardIndex < column.length - 1;
+                    const isCoverDetailHeld = isCovered && heldCoveredCardIds.has(card.id);
                     const isDraggingSource =
                       Boolean(dragPreview?.hasMoved) &&
                       dragPreview?.move.fromColumn === columnIndex &&
                       cardIndex >= dragPreview.move.startIndex;
-                    const dealOrder = dealAnimationOrders[card.id];
+                    const dealAnimation = dealAnimations[card.id];
                     const dealAnimationStyle =
-                      dealOrder === undefined
+                      dealAnimation === undefined
                         ? undefined
                         : ({
-                            "--deal-delay": `${dealOrder * DEAL_ANIMATION_STAGGER_MS}ms`,
-                            "--deal-from-x": `${-42 - columnIndex * 74}px`,
-                            "--deal-from-y": `${-110 - Math.min(dealOrder, 8) * 4}px`
+                            "--deal-delay": `${dealAnimation.order * DEAL_ANIMATION_STAGGER_MS}ms`,
+                            "--deal-from-x": `${dealAnimation.fromX}px`,
+                            "--deal-from-y": `${dealAnimation.fromY}px`
                           } as CSSProperties);
 
                     return (
                       <div
                         key={card.id}
-                        className={["tableau-card", dealOrder === undefined ? "" : "is-dealt-card"].join(" ")}
-                        data-deal-animation-order={dealOrder}
-                        style={dealAnimationStyle}
+                        className={[
+                          "tableau-card",
+                          isCovered ? "is-covered" : "",
+                          isCoverDetailHeld ? "is-cover-detail-held" : "",
+                          dealAnimation === undefined ? "" : "is-dealt-card"
+                        ].join(" ")}
+                        data-card-id={card.id}
+                        data-deal-animation-order={dealAnimation?.order}
+                        style={
+                          {
+                            ...dealAnimationStyle,
+                            "--card-layer": cardIndex,
+                            ...(cardReveals[cardIndex] === undefined
+                              ? {}
+                              : { "--card-reveal": `${cardReveals[cardIndex]}px` })
+                          } as CSSProperties
+                        }
                       >
                         <CardView
                           card={card}
                           cardBack={settings.cardBack}
+                          columnIndex={columnIndex}
+                          cardIndex={cardIndex}
                           isSelected={isSelected}
                           isHinted={isHinted}
                           isDraggingSource={isDraggingSource}
                           isMovable={isMovable}
-                          onClick={(event) => handleCardClick(columnIndex, cardIndex, event)}
-                          onMouseDown={(event) => handleMouseDown(columnIndex, cardIndex, event)}
-                          onPointerDown={(event) => handlePointerDown(columnIndex, cardIndex, event)}
+                          isBlockedSource={isBlockedSource}
+                          isBlockedAttachment={isBlockedAttachment}
+                          isBlockedBreak={isBlockedBreak}
+                          onClick={handleCardClickEvent}
+                          onMouseDown={handleCardMouseDownEvent}
+                          onPointerDown={handleCardPointerDownEvent}
                         />
                       </div>
                     );
@@ -935,8 +1352,13 @@ export default function App() {
 
         {dragPreview?.hasMoved ? (
           <DragPreview
+            previewRef={dragPreviewElementRef}
             cards={game.tableau[dragPreview.move.fromColumn].slice(dragPreview.move.startIndex)}
             cardBack={settings.cardBack}
+            cardReveals={getColumnCardReveals(
+              game.tableau[dragPreview.move.fromColumn].slice(dragPreview.move.startIndex),
+              autoFitMetrics
+            )}
             x={dragPreview.x - dragPreview.offsetX}
             y={dragPreview.y - dragPreview.offsetY}
           />
@@ -948,6 +1370,28 @@ export default function App() {
             <span>Game won</span>
           </div>
         ) : null}
+
+        <div className="board-actions board-actions--left" aria-label="Quick actions">
+          <IconButton icon={<Play size={22} />} label="New Game" className="board-action" onClick={handleNewGame} />
+          <IconButton icon={<Lightbulb size={22} />} label="Hint" className="board-action" onClick={handleHint} />
+        </div>
+
+        <div className="board-actions board-actions--right" aria-label="History actions">
+          <IconButton
+            icon={<Undo2 size={22} />}
+            label="Undo"
+            className="board-action"
+            onClick={handleUndo}
+            disabled={game.undoStack.length === 0}
+          />
+          <IconButton
+            icon={<Redo2 size={22} />}
+            label="Redo"
+            className="board-action"
+            onClick={handleRedo}
+            disabled={game.redoStack.length === 0}
+          />
+        </div>
       </section>
 
       <div className="sr-only" role="status" aria-live="polite">
@@ -993,6 +1437,20 @@ export default function App() {
                 <option value="spruce">Spruce</option>
                 <option value="midnight">Midnight</option>
                 <option value="ember">Ember</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Card face</span>
+              <select
+                value={settings.cardFace}
+                onChange={(event) => {
+                  void updateSettings({ ...settingsRef.current, cardFace: event.target.value as CardFaceTheme });
+                }}
+              >
+                <option value="system">Match theme</option>
+                <option value="classic">Light cards</option>
+                <option value="dark">Dark cards</option>
               </select>
             </label>
 
@@ -1111,64 +1569,279 @@ function applyGameScale(root: HTMLElement, settings: Settings): void {
   root.style.setProperty("--card-max-width", `${BASE_CARD_MAX_WIDTH * scale}px`);
 }
 
-export function applyAutoFitScale(surface: HTMLElement, settings: Settings, game: GameState): void {
+function getCompletedSuitSummaries(game: GameState): CompletedSuitSummary[] {
+  const activeSuits = SUITS.slice(0, DIFFICULTIES[game.difficulty].suitCount);
+  const totalPerSuit = 8 / DIFFICULTIES[game.difficulty].suitCount;
+  const completedBySuit = new Map<Suit, number>();
+
+  for (const sequence of game.completed) {
+    completedBySuit.set(sequence.suit, (completedBySuit.get(sequence.suit) ?? 0) + 1);
+  }
+
+  return activeSuits.map((suit) => ({
+    suit,
+    completed: completedBySuit.get(suit) ?? 0,
+    total: totalPerSuit
+  }));
+}
+
+function suitLabel(suit: Suit): string {
+  return `${suit.slice(0, 1).toUpperCase()}${suit.slice(1)}`;
+}
+
+export function applyAutoFitScale(
+  surface: HTMLElement,
+  settings: Settings,
+  _game?: GameState,
+  tableauElement?: HTMLElement | null,
+  controlLayout: BoardControlLayout = "bottom"
+): AutoFitMetrics | null {
   const root = document.documentElement;
 
   if (settings.gameScaleMode !== "auto") {
     root.style.removeProperty("--card-fit-width");
-    return;
+    root.style.removeProperty("--card-stack-visible-ratio");
+    return DEFAULT_AUTO_FIT_METRICS;
   }
 
   const surfaceWidth = getVisibleInlineSize(surface);
   const surfaceHeight = getVisibleBlockSize(surface);
 
   if (surfaceWidth <= 0 || surfaceHeight <= 0) {
-    return;
+    return null;
   }
 
   const surfaceStyle = getComputedStyle(surface);
   const inlinePadding = parsePixels(surfaceStyle.paddingLeft) + parsePixels(surfaceStyle.paddingRight);
   const blockPadding = parsePixels(surfaceStyle.paddingTop) + parsePixels(surfaceStyle.paddingBottom);
   const rowGap = parsePixels(surfaceStyle.rowGap || surfaceStyle.gap);
-  const columnGap = readRootPixels("--tableau-gap");
-  const availableWidth = Math.max(1, surfaceWidth - inlinePadding - TABLEAU_FIT_SAFETY_PX);
+  const columnGap = getResolvedTableauGap(surface, tableauElement);
+  const sideResourceReserve =
+    controlLayout === "side" ? SIDE_RESOURCE_MAX_WIDTH_PX + SIDE_RESOURCE_ENTER_GAP_PX : 0;
+  const availableWidth = Math.max(1, surfaceWidth - inlinePadding - sideResourceReserve - TABLEAU_FIT_SAFETY_PX);
+  const userScale = settings.gameScale / GAME_SCALE.default;
   const horizontalFit =
-    (availableWidth - columnGap * (TABLEAU_COLUMN_COUNT - 1)) / TABLEAU_COLUMN_COUNT;
-  const tallestColumn = Math.max(1, ...game.tableau.map((column) => column.length));
-  const stackHeightRatio = CARD_HEIGHT_RATIO * (1 + (tallestColumn - 1) * CARD_STACK_VISIBLE_RATIO);
-  const visibleStackHeight = getVisibleStackHeight(surface, surfaceHeight, surfaceStyle);
-  const verticalFit =
-    visibleStackHeight === null
-      ? Math.max(1, surfaceHeight - blockPadding - rowGap - TABLEAU_FIT_SAFETY_PX) /
-        (TOP_ROW_HEIGHT_RATIO + stackHeightRatio)
-      : visibleStackHeight / stackHeightRatio;
-  const fitWidth = Math.floor(Math.max(1, Math.min(horizontalFit, verticalFit)));
+    ((availableWidth - columnGap * (TABLEAU_COLUMN_COUNT - 1)) / TABLEAU_COLUMN_COUNT) * userScale;
+  const availableHeight = Math.floor(getAvailableTableauBlockSize(surfaceHeight, blockPadding, rowGap, tableauElement));
+  const verticalFit = getMinimumRevealFitWidth(availableHeight, AUTO_FIT_REFERENCE_COLUMN_HEIGHT);
+  const heightBalancedFit = availableHeight * MAX_CARD_WIDTH_TO_TABLEAU_HEIGHT_RATIO;
+  const fitWidth = Math.floor(Math.max(1, Math.min(horizontalFit, verticalFit, heightBalancedFit)));
+  const stackVisibleRatio = CARD_STACK_VISIBLE_RATIO;
 
   root.style.setProperty("--card-fit-width", `${fitWidth}px`);
+  root.style.setProperty("--card-stack-visible-ratio", stackVisibleRatio.toFixed(3));
+
+  return {
+    cardWidth: fitWidth,
+    stackVisibleRatio,
+    availableHeight
+  };
 }
 
-function getVisibleStackHeight(
+export function getBoardControlLayout(
   surface: HTMLElement,
+  metrics: AutoFitMetrics
+): BoardControlLayout {
+  if (metrics.cardWidth === null) {
+    return "bottom";
+  }
+
+  const surfaceWidth = getVisibleInlineSize(surface);
+  const surfaceHeight = getVisibleBlockSize(surface);
+  const surfaceStyle = getComputedStyle(surface);
+  const inlinePadding = parsePixels(surfaceStyle.paddingLeft) + parsePixels(surfaceStyle.paddingRight);
+  const columnGap = getResolvedTableauGap(surface);
+  const tableauWidth = metrics.cardWidth * TABLEAU_COLUMN_COUNT + columnGap * (TABLEAU_COLUMN_COUNT - 1);
+  const availableInlineSpace = Math.max(0, surfaceWidth - inlinePadding);
+  const resourceWidth = getSideResourceWidth(metrics.cardWidth);
+  const requiredInlineSpace = tableauWidth + resourceWidth + SIDE_RESOURCE_ENTER_GAP_PX;
+
+  return availableInlineSpace >= requiredInlineSpace && surfaceHeight >= SIDE_RESOURCE_ENTER_HEIGHT_PX
+    ? "side"
+    : "bottom";
+}
+
+function getSideResourceWidth(cardWidth: number): number {
+  return clamp(cardWidth * SIDE_RESOURCE_WIDTH_RATIO, SIDE_RESOURCE_MIN_WIDTH_PX, SIDE_RESOURCE_MAX_WIDTH_PX);
+}
+
+function getAvailableTableauBlockSize(
   surfaceHeight: number,
-  surfaceStyle: CSSStyleDeclaration
-): number | null {
-  const tableau = surface.querySelector<HTMLElement>(".tableau");
+  blockPadding: number,
+  rowGap: number,
+  tableauElement?: HTMLElement | null
+): number {
+  if (tableauElement) {
+    const measuredTableauHeight = getVisibleBlockSize(tableauElement);
 
-  if (!tableau) {
-    return null;
+    if (measuredTableauHeight > 0) {
+      return Math.max(1, measuredTableauHeight - TABLEAU_FIT_SAFETY_PX);
+    }
   }
 
-  const surfaceRect = surface.getBoundingClientRect();
-  const tableauRect = tableau.getBoundingClientRect();
+  return Math.max(1, surfaceHeight - blockPadding - rowGap - TABLEAU_FIT_SAFETY_PX);
+}
 
-  if (surfaceRect.height <= 0 || tableauRect.height <= 0) {
-    return null;
+function getResolvedTableauGap(surface: HTMLElement, tableauElement?: HTMLElement | null): number {
+  const tableau = tableauElement ?? surface.querySelector<HTMLElement>(".tableau");
+
+  if (tableau) {
+    const style = getComputedStyle(tableau);
+    const gap = parsePixels(style.columnGap || style.gap);
+
+    if (gap > 0) {
+      return gap;
+    }
   }
 
-  const tableauTopOffset = Math.max(0, tableauRect.top - surfaceRect.top);
-  const bottomPadding = parsePixels(surfaceStyle.paddingBottom);
+  return readRootPixels("--tableau-gap");
+}
 
-  return Math.max(1, surfaceHeight - tableauTopOffset - bottomPadding - TABLEAU_FIT_SAFETY_PX);
+function getMinimumRevealFitWidth(availableHeight: number, columnHeight: number): number {
+  const stackedRevealHeight = Math.max(0, columnHeight - 1) * MIN_CARD_STACK_REVEAL_PX;
+  const remainingHeight = availableHeight - stackedRevealHeight;
+
+  if (remainingHeight <= 0) {
+    return 1;
+  }
+
+  return remainingHeight / CARD_HEIGHT_RATIO;
+}
+
+export function getColumnCardReveals(column: Card[], metrics: AutoFitMetrics): Array<number | undefined> {
+  if (column.length <= 1 || metrics.cardWidth === null || metrics.availableHeight === null) {
+    return column.map((_, index) => (index === 0 ? undefined : getFallbackCardRevealPx(metrics)));
+  }
+
+  const cardWidth = metrics.cardWidth;
+  const availableHeight = metrics.availableHeight;
+  const cardHeight = cardWidth * CARD_HEIGHT_RATIO;
+  const availableColumnHeight = Math.max(cardHeight, availableHeight);
+  const coveredCardCount = column.length - 1;
+  const revealTargets = new Array<number>(coveredCardCount);
+  let targetRevealTotal = 0;
+
+  for (let index = 0; index < coveredCardCount; index += 1) {
+    const target = getCardRevealTargetPx(column[index], cardWidth);
+
+    revealTargets[index] = target;
+    targetRevealTotal += target;
+  }
+
+  const reveals: Array<number | undefined> = [undefined];
+  const targetHeight = cardHeight + targetRevealTotal;
+
+  if (targetHeight <= availableColumnHeight) {
+    for (const target of revealTargets) {
+      reveals.push(roundRevealPx(target));
+    }
+
+    return reveals;
+  }
+
+  const revealMinimums = new Array<number>(coveredCardCount);
+  const revealFloors = new Array<number>(coveredCardCount);
+  let minimumRevealTotal = 0;
+  let floorRevealTotal = 0;
+
+  for (let index = 0; index < coveredCardCount; index += 1) {
+    const card = column[index];
+    const minimum = getCardRevealMinimumPx(card, cardWidth);
+    const floor = getCardRevealFloorPx(card, cardWidth);
+
+    revealMinimums[index] = minimum;
+    revealFloors[index] = floor;
+    minimumRevealTotal += minimum;
+    floorRevealTotal += floor;
+  }
+
+  const minimumHeight = cardHeight + minimumRevealTotal;
+  const floorHeight = cardHeight + floorRevealTotal;
+  const compressionMinimums =
+    minimumHeight <= availableColumnHeight
+      ? revealMinimums
+      : floorHeight <= availableColumnHeight
+        ? revealFloors
+        : getUniformFitReveals(column.length, cardHeight, availableColumnHeight);
+  const compressionMinimumHeight =
+    compressionMinimums === revealMinimums
+      ? minimumHeight
+      : compressionMinimums === revealFloors
+        ? floorHeight
+        : cardHeight + sumNumbers(compressionMinimums);
+  const compressionRatio =
+    targetHeight === compressionMinimumHeight
+      ? 0
+      : Math.max(
+          0,
+          Math.min(1, (availableColumnHeight - compressionMinimumHeight) / (targetHeight - compressionMinimumHeight))
+        );
+
+  for (let index = 0; index < revealTargets.length; index += 1) {
+    const minimum = compressionMinimums[index];
+    const target = revealTargets[index];
+    reveals.push(roundRevealPx(minimum + (target - minimum) * compressionRatio));
+  }
+
+  return reveals;
+}
+
+function getFallbackCardRevealPx(metrics: AutoFitMetrics): number {
+  if (metrics.cardWidth === null || metrics.availableHeight === null) {
+    return MIN_CARD_STACK_REVEAL_PX;
+  }
+
+  return roundRevealPx(metrics.cardWidth * metrics.stackVisibleRatio);
+}
+
+function getCardRevealTargetPx(card: Card, cardWidth: number): number {
+  return card.faceUp
+    ? clamp(cardWidth * FACE_UP_REVEAL_RATIO, FACE_UP_REVEAL_MIN_PX, FACE_UP_REVEAL_MAX_PX)
+    : clamp(cardWidth * FACE_DOWN_REVEAL_RATIO, FACE_DOWN_REVEAL_MIN_PX, FACE_DOWN_REVEAL_MAX_PX);
+}
+
+function getCardRevealMinimumPx(card: Card, cardWidth: number): number {
+  return card.faceUp
+    ? clamp(cardWidth * FACE_UP_REVEAL_MIN_RATIO, FACE_UP_REVEAL_MIN_PX, FACE_UP_REVEAL_MAX_PX)
+    : FACE_DOWN_REVEAL_MIN_PX;
+}
+
+function getCardRevealFloorPx(card: Card, cardWidth: number): number {
+  return card.faceUp
+    ? clamp(cardWidth * FACE_UP_REVEAL_FLOOR_RATIO, FACE_UP_REVEAL_FLOOR_PX, FACE_UP_REVEAL_MAX_PX)
+    : FACE_DOWN_REVEAL_FLOOR_PX;
+}
+
+function getUniformFitReveals(cardCount: number, cardHeight: number, availableHeight: number): number[] {
+  const coveredCardCount = Math.max(0, cardCount - 1);
+
+  if (coveredCardCount === 0) {
+    return [];
+  }
+
+  const reveal = Math.max(1, (availableHeight - cardHeight) / coveredCardCount);
+
+  return Array.from({ length: coveredCardCount }, () => reveal);
+}
+
+function roundRevealPx(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+function sumNumbers(values: number[]): number {
+  return values.reduce((total, value) => total + value, 0);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function areAutoFitMetricsEqual(current: AutoFitMetrics, next: AutoFitMetrics): boolean {
+  return (
+    current.cardWidth === next.cardWidth &&
+    current.stackVisibleRatio === next.stackVisibleRatio &&
+    current.availableHeight === next.availableHeight
+  );
 }
 
 function getVisibleInlineSize(surface: HTMLElement): number {
@@ -1220,6 +1893,51 @@ function parsePixels(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function measureDealAnimations(
+  orders: Record<string, number>,
+  sourceElement: HTMLElement | null
+): Record<string, DealAnimationConfig> {
+  const sourceRect = sourceElement?.getBoundingClientRect();
+  const elementsByCardId = getTableauCardElementMap();
+  const fallbackSource = {
+    x: getViewportWidth() - 48,
+    y: getViewportHeight() - 96
+  };
+  const sourceCenter =
+    sourceRect === undefined
+      ? fallbackSource
+      : {
+          x: sourceRect.left + sourceRect.width / 2,
+          y: sourceRect.top + sourceRect.height / 2
+        };
+
+  return Object.fromEntries(
+    Object.entries(orders).map(([cardId, order]) => {
+      const cardElement = elementsByCardId.get(cardId)?.querySelector<HTMLElement>(".card");
+      const cardRect = cardElement?.getBoundingClientRect();
+      const cardCenter =
+        cardRect === undefined
+          ? {
+              x: sourceCenter.x,
+              y: sourceCenter.y
+            }
+          : {
+              x: cardRect.left + cardRect.width / 2,
+              y: cardRect.top + cardRect.height / 2
+            };
+
+      return [
+        cardId,
+        {
+          order,
+          fromX: Math.round(sourceCenter.x - cardCenter.x),
+          fromY: Math.round(sourceCenter.y - cardCenter.y)
+        }
+      ];
+    })
+  );
+}
+
 function getStockDealAnimationOrders(tableau: Card[][]): Record<string, number> {
   return Object.fromEntries(
     tableau.flatMap((column, columnIndex) => {
@@ -1227,6 +1945,16 @@ function getStockDealAnimationOrders(tableau: Card[][]): Record<string, number> 
       return card ? [[card.id, columnIndex]] : [];
     })
   );
+}
+
+function getDealAnimationHoldDuration(orders: Record<string, number>): number {
+  const orderValues = Object.values(orders);
+
+  if (orderValues.length === 0) {
+    return MOVE_ANIMATION_DURATION_MS + MOVE_COVER_DETAIL_SETTLE_MS;
+  }
+
+  return DEAL_ANIMATION_DURATION_MS + Math.max(...orderValues) * DEAL_ANIMATION_STAGGER_MS + MOVE_COVER_DETAIL_SETTLE_MS;
 }
 
 function getInitialDealAnimationOrders(tableau: Card[][]): Record<string, number> {
@@ -1259,17 +1987,160 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
+interface GameTopBarProps {
+  game: GameState;
+  selectedDifficulty: Difficulty;
+  canInstallUpdate: boolean;
+  onDifficultyChange: (difficulty: Difficulty) => void;
+  onRestart: () => void;
+  onSettings: () => void;
+  onStats: () => void;
+  onAbout: () => void;
+  onInstallUpdate: () => void;
+  onElapsedTick: (elapsedMs: number) => void;
+}
+
+function GameTopBar({
+  game,
+  selectedDifficulty,
+  canInstallUpdate,
+  onDifficultyChange,
+  onRestart,
+  onSettings,
+  onStats,
+  onAbout,
+  onInstallUpdate,
+  onElapsedTick
+}: GameTopBarProps) {
+  return (
+    <header className="game-topbar" aria-label="Game status and controls">
+      <div className="game-topbar__left" aria-label="Game controls">
+        <IconButton icon={<Menu size={23} />} label="Menu" className="game-topbar__button" onClick={onSettings} />
+        <IconButton
+          icon={<RotateCcw size={22} />}
+          label="Restart"
+          className="game-topbar__button"
+          onClick={onRestart}
+        />
+        <div className="game-title-lockup">
+          <span className="game-title-lockup__mark" aria-hidden="true">
+            ♠
+          </span>
+          <div>
+            <h1>Spider</h1>
+            <p>{DIFFICULTIES[game.difficulty].label}</p>
+          </div>
+        </div>
+        <label className="difficulty-picker difficulty-picker--topbar">
+          <span className="sr-only">Difficulty</span>
+          <select
+            value={selectedDifficulty}
+            aria-label="Difficulty"
+            onChange={(event) => onDifficultyChange(event.target.value as Difficulty)}
+          >
+            {Object.entries(DIFFICULTIES).map(([value, config]) => (
+              <option key={value} value={value}>
+                {config.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="game-topbar__scoreboard" aria-label="Game status">
+        <TopBarMetric label="Score" value={String(game.score)} />
+        <TopBarMetric label="Moves" value={String(game.moves)} />
+        <ElapsedTimeMetric
+          timerId={`${game.seed}:${game.startedAt}`}
+          initialElapsedMs={game.elapsedMs}
+          status={game.status}
+          onElapsedTick={onElapsedTick}
+        />
+        <TopBarMetric label="Complete" value={`${game.completed.length}/8`} />
+      </div>
+
+      <div className="game-topbar__utilities" aria-label="Application actions">
+        {canInstallUpdate ? (
+          <IconButton icon={<Download size={19} />} label="Install Update" compact onClick={onInstallUpdate} />
+        ) : null}
+        <IconButton icon={<BarChart3 size={19} />} label="Stats" compact onClick={onStats} />
+        <IconButton icon={<Info size={19} />} label="About" compact onClick={onAbout} />
+        <IconButton icon={<SettingsIcon size={19} />} label="Settings" compact onClick={onSettings} />
+      </div>
+    </header>
+  );
+}
+
+function TopBarMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="game-stat">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function ElapsedTimeMetric({
+  timerId,
+  initialElapsedMs,
+  status,
+  onElapsedTick
+}: {
+  timerId: string;
+  initialElapsedMs: number;
+  status: GameState["status"];
+  onElapsedTick: (elapsedMs: number) => void;
+}) {
+  const [elapsedMs, setElapsedMs] = useState(initialElapsedMs);
+  const elapsedMsRef = useRef(initialElapsedMs);
+
+  useEffect(() => {
+    elapsedMsRef.current = initialElapsedMs;
+    setElapsedMs(initialElapsedMs);
+  }, [initialElapsedMs, timerId]);
+
+  useEffect(() => {
+    let lastTick = Date.now();
+
+    const tick = () => {
+      const now = Date.now();
+      const delta = now - lastTick;
+      lastTick = now;
+
+      if (document.hidden || status !== "playing") {
+        return;
+      }
+
+      const nextElapsedMs = elapsedMsRef.current + delta;
+      elapsedMsRef.current = nextElapsedMs;
+      onElapsedTick(nextElapsedMs);
+      setElapsedMs(nextElapsedMs);
+    };
+
+    const interval = window.setInterval(tick, 1000);
+    return () => window.clearInterval(interval);
+  }, [onElapsedTick, status, timerId]);
+
+  return <TopBarMetric label="Time" value={formatDuration(elapsedMs)} />;
+}
+
 function StatsView({ stats, allStats }: { stats: StatsPayload; allStats: StatsRollup }) {
   const difficultyRollups = stats.rollups.filter((rollup) => rollup.scope === "difficulty");
+  const averageScore = allStats.gamesPlayed === 0 ? 0 : Math.round(allStats.totalScore / allStats.gamesPlayed);
+  const winRate = allStats.gamesPlayed === 0 ? 0 : Math.round((allStats.gamesWon / allStats.gamesPlayed) * 100);
 
   return (
     <div className="stats-grid">
-      <Metric label="Games" value={String(allStats.gamesPlayed)} />
-      <Metric label="Wins" value={String(allStats.gamesWon)} />
-      <Metric label="Abandoned" value={String(allStats.gamesAbandoned)} />
-      <Metric label="Best Score" value={allStats.bestScore === null ? "—" : String(allStats.bestScore)} />
+      <Metric label="Lifetime Points" value={formatNumber(allStats.totalScore)} />
+      <Metric label="Average Points" value={allStats.gamesPlayed === 0 ? "—" : formatNumber(averageScore)} />
+      <Metric label="Games" value={formatNumber(allStats.gamesPlayed)} />
+      <Metric label="Wins" value={formatNumber(allStats.gamesWon)} />
+      <Metric label="Win Rate" value={allStats.gamesPlayed === 0 ? "—" : `${winRate}%`} />
+      <Metric label="Abandoned" value={formatNumber(allStats.gamesAbandoned)} />
+      <Metric label="Best Score" value={allStats.bestScore === null ? "—" : formatNumber(allStats.bestScore)} />
       <Metric label="Best Time" value={allStats.bestTimeMs === null ? "—" : formatDuration(allStats.bestTimeMs)} />
-      <Metric label="Total Time" value={formatDuration(allStats.totalElapsedMs)} />
+      <Metric label="Moves Made" value={formatNumber(allStats.totalMoves)} />
+      <Metric label="Time Played" value={formatDuration(allStats.totalElapsedMs)} />
 
       {difficultyRollups.length > 0 ? (
         <table className="stats-table">
@@ -1278,6 +2149,7 @@ function StatsView({ stats, allStats }: { stats: StatsPayload; allStats: StatsRo
               <th>Difficulty</th>
               <th>Played</th>
               <th>Won</th>
+              <th>Points</th>
               <th>Best</th>
             </tr>
           </thead>
@@ -1285,9 +2157,10 @@ function StatsView({ stats, allStats }: { stats: StatsPayload; allStats: StatsRo
             {difficultyRollups.map((rollup) => (
               <tr key={rollup.difficulty}>
                 <td>{rollup.difficulty === "all" ? "All" : DIFFICULTIES[rollup.difficulty].label}</td>
-                <td>{rollup.gamesPlayed}</td>
-                <td>{rollup.gamesWon}</td>
-                <td>{rollup.bestScore ?? "—"}</td>
+                <td>{formatNumber(rollup.gamesPlayed)}</td>
+                <td>{formatNumber(rollup.gamesWon)}</td>
+                <td>{formatNumber(rollup.totalScore)}</td>
+                <td>{rollup.bestScore === null ? "—" : formatNumber(rollup.bestScore)}</td>
               </tr>
             ))}
           </tbody>
@@ -1297,17 +2170,34 @@ function StatsView({ stats, allStats }: { stats: StatsPayload; allStats: StatsRo
   );
 }
 
-function DragPreview({ cards, cardBack, x, y }: { cards: Card[]; cardBack: CardBack; x: number; y: number }) {
+function DragPreview({
+  previewRef,
+  cards,
+  cardBack,
+  cardReveals,
+  x,
+  y
+}: {
+  previewRef: Ref<HTMLDivElement>;
+  cards: Card[];
+  cardBack: CardBack;
+  cardReveals: Array<number | undefined>;
+  x: number;
+  y: number;
+}) {
   return (
     <div
+      ref={previewRef}
       className="drag-preview"
       data-testid="drag-preview"
-      style={{
-        transform: `translate3d(${x}px, ${y}px, 0)`
-      }}
+      style={
+        {
+          transform: getDragPreviewTransformFromPosition(x, y)
+        } as CSSProperties
+      }
       aria-hidden="true"
     >
-      {cards.map((card) => {
+      {cards.map((card, index) => {
         const color = card.suit === "hearts" || card.suit === "diamonds" ? "red" : "black";
 
         return (
@@ -1320,6 +2210,11 @@ function DragPreview({ cards, cardBack, x, y }: { cards: Card[]; cardBack: CardB
               `card--${color}`,
               `card--back-${cardBack}`
             ].join(" ")}
+            style={
+              cardReveals[index] === undefined
+                ? undefined
+                : ({ "--card-reveal": `${cardReveals[index]}px` } as CSSProperties)
+            }
           >
             <CardFace card={card} />
           </div>
@@ -1342,6 +2237,127 @@ function getColumnIndexAtPoint(x: number, y: number): number | null {
   return Number.isInteger(index) ? index : null;
 }
 
+function readCardEventPosition(element: HTMLElement): { columnIndex: number; cardIndex: number } | null {
+  const columnIndex = Number.parseInt(element.dataset.cardColumnIndex ?? "", 10);
+  const cardIndex = Number.parseInt(element.dataset.cardIndex ?? "", 10);
+
+  if (!Number.isInteger(columnIndex) || !Number.isInteger(cardIndex)) {
+    return null;
+  }
+
+  return { columnIndex, cardIndex };
+}
+
+function shouldRenderDragPreviewUpdate(
+  current: DragPreviewState | null,
+  next: DragPreviewState | null
+): boolean {
+  if (current === next) {
+    return false;
+  }
+
+  if (!current || !next) {
+    return current !== next;
+  }
+
+  return (
+    current.hasMoved !== next.hasMoved ||
+    current.overColumn !== next.overColumn ||
+    current.pointerId !== next.pointerId ||
+    current.move.fromColumn !== next.move.fromColumn ||
+    current.move.startIndex !== next.move.startIndex
+  );
+}
+
+function getDragPreviewTransform(preview: DragPreviewState): string {
+  return getDragPreviewTransformFromPosition(preview.x - preview.offsetX, preview.y - preview.offsetY);
+}
+
+function getDragPreviewTransformFromPosition(x: number, y: number): string {
+  return `translate3d(${x}px, ${y}px, 0)`;
+}
+
+function getMovingCardIds(state: GameState, move: CardMove): string[] {
+  return state.tableau[move.fromColumn]?.slice(move.startIndex).map((card) => card.id) ?? [];
+}
+
+function getTopTableauCardIds(state: GameState): string[] {
+  return state.tableau.flatMap((column) => {
+    const card = column.at(-1);
+    return card?.faceUp ? [card.id] : [];
+  });
+}
+
+function getDestinationCoverDetailCardIds(state: GameState, move: CardMove): string[] {
+  const destinationCard = state.tableau[move.toColumn]?.at(-1);
+
+  return destinationCard?.faceUp ? [destinationCard.id] : [];
+}
+
+function captureMoveAnimationSnapshots(cardIds: string[]): MoveAnimationSnapshot[] {
+  const wantedCardIds = new Set(cardIds);
+  const snapshotsByCardId = new Map<string, MoveAnimationSnapshot>();
+
+  document.querySelectorAll<HTMLElement>(".tableau-card[data-card-id]").forEach((element) => {
+    const cardId = element.dataset.cardId;
+
+    if (cardId && wantedCardIds.has(cardId)) {
+      snapshotsByCardId.set(cardId, {
+        cardId,
+        element,
+        beforeRect: element.getBoundingClientRect()
+      });
+    }
+  });
+
+  return cardIds
+    .map((cardId) => snapshotsByCardId.get(cardId))
+    .filter((snapshot): snapshot is MoveAnimationSnapshot => snapshot !== undefined);
+}
+
+function getTableauCardElementMap(): Map<string, HTMLElement> {
+  const elementsByCardId = new Map<string, HTMLElement>();
+
+  document.querySelectorAll<HTMLElement>(".tableau-card[data-card-id]").forEach((element) => {
+    const cardId = element.dataset.cardId;
+
+    if (cardId) {
+      elementsByCardId.set(cardId, element);
+    }
+  });
+
+  return elementsByCardId;
+}
+
+function canPlaceMovingCardOnColumn(column: Card[], movingCard: Card): boolean {
+  const destinationCard = column.at(-1);
+
+  return !destinationCard || (destinationCard.faceUp && destinationCard.rank === movingCard.rank + 1);
+}
+
+function getMovableRunStarts(column: Card[]): boolean[] {
+  const movableStarts = Array<boolean>(column.length).fill(false);
+  let tailCanMove = true;
+
+  for (let index = column.length - 1; index >= 0; index -= 1) {
+    const card = column[index];
+    const next = column[index + 1];
+
+    if (!card.faceUp) {
+      tailCanMove = false;
+      continue;
+    }
+
+    if (next && (!next.faceUp || card.suit !== next.suit || card.rank !== next.rank + 1)) {
+      tailCanMove = false;
+    }
+
+    movableStarts[index] = tailCanMove;
+  }
+
+  return movableStarts;
+}
+
 function getRollup(stats: StatsPayload, difficulty: Difficulty | "all"): StatsRollup {
   return (
     stats.rollups.find((rollup) => rollup.difficulty === difficulty) ?? {
@@ -1362,4 +2378,8 @@ function formatDuration(milliseconds: number): string {
   }
 
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function formatNumber(value: number): string {
+  return value.toLocaleString("en-US");
 }
