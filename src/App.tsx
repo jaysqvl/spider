@@ -6,6 +6,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState
@@ -97,7 +98,6 @@ const SIDE_RESOURCE_MAX_WIDTH_PX = 190;
 const SIDE_RESOURCE_WIDTH_RATIO = 1.35;
 const SIDE_RESOURCE_ENTER_GAP_PX = 18;
 const SIDE_RESOURCE_ENTER_HEIGHT_PX = 740;
-const SIDE_RESOURCE_LAYOUT_HYSTERESIS_PX = 24;
 const TOAST_VISIBLE_MS = 5200;
 const UPDATE_TOAST_ID = "update-status";
 const BLOCKED_RUN_FEEDBACK_MS = 1100;
@@ -269,7 +269,7 @@ export default function App() {
     };
   }, [settings]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const surface = playSurfaceRef.current;
 
     if (!surface) {
@@ -280,7 +280,7 @@ export default function App() {
 
     const updateFit = () => {
       fitFrame = null;
-      const resolvedLayout = resolveAutoFitLayout(surface, settings, controlLayoutRef.current);
+      const resolvedLayout = resolveAutoFitLayout(surface, settings, controlLayoutRef.current, tableauRef.current);
 
       if (resolvedLayout) {
         applyResolvedAutoFitMetrics(settings, resolvedLayout.metrics);
@@ -1573,6 +1573,7 @@ export default function App() {
           </div>
         </Modal>
       ) : null}
+
     </main>
   );
 }
@@ -1657,8 +1658,7 @@ export function resolveAutoFitLayout(
 
   const sideMetrics = calculateAutoFitMetrics(surface, settings, tableauElement, "side");
   const nextControlLayout =
-    getBoardControlLayout(surface, bottomMetrics, currentControlLayout) === "side" ||
-    (sideMetrics !== null && getBoardControlLayout(surface, sideMetrics, currentControlLayout) === "side")
+    sideMetrics !== null && getBoardControlLayout(surface, sideMetrics, currentControlLayout) === "side"
       ? "side"
       : "bottom";
   const metrics = nextControlLayout === "side" ? sideMetrics ?? bottomMetrics : bottomMetrics;
@@ -1728,7 +1728,7 @@ function setRootStyleProperty(root: HTMLElement, property: string, value: string
 export function getBoardControlLayout(
   surface: HTMLElement,
   metrics: AutoFitMetrics,
-  currentControlLayout: BoardControlLayout = "bottom"
+  _currentControlLayout: BoardControlLayout = "bottom"
 ): BoardControlLayout {
   if (metrics.cardWidth === null) {
     return "bottom";
@@ -1743,12 +1743,8 @@ export function getBoardControlLayout(
   const availableInlineSpace = Math.max(0, surfaceWidth - inlinePadding);
   const resourceWidth = getSideResourceWidth(metrics.cardWidth);
   const requiredInlineSpace = tableauWidth + resourceWidth + SIDE_RESOURCE_ENTER_GAP_PX;
-  const canStaySide =
-    currentControlLayout === "side" &&
-    availableInlineSpace + SIDE_RESOURCE_LAYOUT_HYSTERESIS_PX >= requiredInlineSpace &&
-    surfaceHeight + SIDE_RESOURCE_LAYOUT_HYSTERESIS_PX >= SIDE_RESOURCE_ENTER_HEIGHT_PX;
 
-  return canStaySide || (availableInlineSpace >= requiredInlineSpace && surfaceHeight >= SIDE_RESOURCE_ENTER_HEIGHT_PX)
+  return availableInlineSpace >= requiredInlineSpace && surfaceHeight >= SIDE_RESOURCE_ENTER_HEIGHT_PX
     ? "side"
     : "bottom";
 }
@@ -1811,7 +1807,7 @@ function getHeightBalancedFitWidth(surfaceWidth: number, surfaceHeight: number, 
 }
 
 function getUltrawideReadableStackFitWidth(availableHeight: number): number | null {
-  const smallestReadableStackHeight = getReferenceStackReadableHeight(1);
+  const smallestReadableStackHeight = getReferenceStackCompressedHeight(1);
 
   if (availableHeight < smallestReadableStackHeight) {
     return null;
@@ -1823,7 +1819,7 @@ function getUltrawideReadableStackFitWidth(availableHeight: number): number | nu
   for (let step = 0; step < 18; step += 1) {
     const midpoint = (low + high) / 2;
 
-    if (getReferenceStackReadableHeight(midpoint) <= availableHeight) {
+    if (getReferenceStackCompressedHeight(midpoint) <= availableHeight) {
       low = midpoint;
     } else {
       high = midpoint;
@@ -1833,11 +1829,11 @@ function getUltrawideReadableStackFitWidth(availableHeight: number): number | nu
   return low;
 }
 
-function getReferenceStackReadableHeight(cardWidth: number): number {
+function getReferenceStackCompressedHeight(cardWidth: number): number {
   const faceDownReveal =
-    ULTRAWIDE_REFERENCE_FACE_DOWN_CARDS * getCardRevealTargetPxForFace(false, cardWidth);
+    ULTRAWIDE_REFERENCE_FACE_DOWN_CARDS * getCardRevealFloorPxForFace(false, cardWidth);
   const faceUpCoveredCards = Math.max(0, ULTRAWIDE_REFERENCE_FACE_UP_RUN_CARDS - 1);
-  const faceUpReveal = faceUpCoveredCards * getCardRevealTargetPxForFace(true, cardWidth);
+  const faceUpReveal = faceUpCoveredCards * getCardRevealFloorPxForFace(true, cardWidth);
 
   return cardWidth * CARD_HEIGHT_RATIO + faceDownReveal + faceUpReveal;
 }
@@ -1945,7 +1941,11 @@ function getCardRevealMinimumPx(card: Card, cardWidth: number): number {
 }
 
 function getCardRevealFloorPx(card: Card, cardWidth: number): number {
-  return card.faceUp
+  return getCardRevealFloorPxForFace(card.faceUp, cardWidth);
+}
+
+function getCardRevealFloorPxForFace(faceUp: boolean, cardWidth: number): number {
+  return faceUp
     ? clamp(cardWidth * FACE_UP_REVEAL_FLOOR_RATIO, FACE_UP_REVEAL_FLOOR_PX, FACE_UP_REVEAL_MAX_PX)
     : FACE_DOWN_REVEAL_FLOOR_PX;
 }

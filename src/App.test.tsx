@@ -269,7 +269,7 @@ describe("App", () => {
     const metrics = applyAutoFitScale(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, undefined, tableau);
 
     expect(metrics?.availableHeight).toBe(518);
-    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(145);
+    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(81);
     surface.remove();
   });
 
@@ -315,9 +315,9 @@ describe("App", () => {
     const visibleHeight = (metrics?.cardWidth ?? 0) * 1.38 + sumRevealPx(reveals);
     const faceUpReveals = reveals.slice(5).map((reveal) => reveal ?? 0);
 
-    expect(metrics?.cardWidth).toBe(145);
+    expect(metrics?.cardWidth).toBe(203);
     expect(visibleHeight).toBeLessThanOrEqual((metrics?.availableHeight ?? 0) + 0.5);
-    expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(47);
+    expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(34);
     surface.remove();
   });
 
@@ -347,7 +347,7 @@ describe("App", () => {
       "side"
     );
 
-    expect(bottomMetrics?.cardWidth).toBe(162);
+    expect(bottomMetrics?.cardWidth).toBe(165);
     expect(sideMetrics?.cardWidth).toBe(144);
     surface.remove();
   });
@@ -416,12 +416,10 @@ describe("App", () => {
     document.body.append(surface);
     surface.append(tableau);
 
-    expect(getBoardControlLayout(surface, { cardWidth: 172, stackVisibleRatio: 0.28, availableHeight: 600 }, "bottom")).toBe(
-      "bottom"
-    );
-    expect(getBoardControlLayout(surface, { cardWidth: 172, stackVisibleRatio: 0.28, availableHeight: 600 }, "side")).toBe(
-      "side"
-    );
+    const metrics = { cardWidth: 172, stackVisibleRatio: 0.28, availableHeight: 600 };
+
+    expect(getBoardControlLayout(surface, metrics, "bottom")).toBe("bottom");
+    expect(getBoardControlLayout(surface, metrics, "side")).toBe("bottom");
     surface.remove();
   });
 

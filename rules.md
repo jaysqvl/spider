@@ -31,7 +31,7 @@ Spider is a portfolio-quality desktop game project. Keep changes easy to review,
 - Ultrawide auto-fit must reserve readable height for a King-to-2 face-up run with hidden cards underneath before allowing cards to grow from extra horizontal space.
 - Stacked face-up cards must reveal enough of the top index to remain playable; do not use one aggressive overlap value for both face-down and face-up covered cards.
 - On large or ultrawide boards, covered face-up cards must reserve enough exposed height for the full corner rank/suit pair. Do not let enlarged card art clip the stacked index.
-- Tableau fit calculations need a rounding guard and browser-verified screenshots at tight widths so the rightmost column cannot be clipped.
+- Tableau fit calculations need a rounding guard and browser-verified screenshots across tight, tall, standard, and ultrawide-short viewports so the rightmost column cannot be clipped and resize transitions cannot settle into stale tiny-card states.
 - Card rank typography must scale from card dimensions so tighter windows preserve readable ranks without breaking tableau fit.
 - Auto-fit must not impose an arbitrary preferred-width ceiling or fill ultrawide monitors purely by width. Let cards grow only while the measured tableau height can still support readable stacks, then compress tall stacks before shrinking global card size.
 - Card faces should render as cohesive card units. Prefer a single card-local SVG viewBox for corners, pips, and court art over independently capped CSS text fragments.
