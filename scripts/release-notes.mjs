@@ -128,7 +128,7 @@ export function buildDevReleaseBody({ version, stableTag, commits, repository, h
   const compare = compareUrl({ repository, base: stableTag, head });
 
   return [
-    "Development build for testing the next Spider patch.",
+    "Development build for testing the next Spider release.",
     "",
     "This prerelease uses a separate app name, bundle identifier, local data directory, and update feed from stable Spider.",
     "",

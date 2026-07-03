@@ -59,6 +59,7 @@ describe("release notes", () => {
     });
 
     expect(body).toContain("Changes since v0.1.6:");
+    expect(body).toContain("Development build for testing the next Spider release.");
     expect(body).toContain("- fix: handle windows dev release lockfile rewrites (ee00fe3)");
     expect(body).toContain("https://github.com/jaysqvl/spider/compare/v0.1.6...abc123def456");
     expect(body).toContain("Spider Dev 0.1.7-dev.3.1");
