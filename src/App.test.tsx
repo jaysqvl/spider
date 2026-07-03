@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import App, { applyAutoFitScale, getBoardControlLayout, getColumnCardReveals } from "./App";
+import App, { applyAutoFitScale, getBoardControlLayout, getColumnCardReveals, resolveAutoFitLayout } from "./App";
 import type { Card, GameState, Rank, Suit } from "./game/types";
 import { DEFAULT_SETTINGS } from "./persistence/types";
 import packageJson from "../package.json";
@@ -118,7 +118,7 @@ describe("App", () => {
     await waitFor(() => expect(document.documentElement.dataset.gameScaleMode).toBe("manual"));
   });
 
-  it("caps auto-fit card width to the visible viewport", () => {
+  it("trusts measured play-surface size during native viewport churn", () => {
     const surface = document.createElement("section");
     Object.defineProperties(surface, {
       clientWidth: { value: 900, configurable: true },
@@ -135,7 +135,7 @@ describe("App", () => {
 
     applyAutoFitScale(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, gameWithRun());
 
-    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(49);
+    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(87);
     surface.remove();
   });
 
@@ -274,6 +274,29 @@ describe("App", () => {
     surface.remove();
   });
 
+  it("resolves ultrawide side-rail fit before writing auto-fit variables", () => {
+    const surface = document.createElement("section");
+    const tableau = document.createElement("div");
+    tableau.className = "tableau";
+    tableau.style.columnGap = "12px";
+    Object.defineProperties(surface, {
+      clientWidth: { value: 1800, configurable: true },
+      clientHeight: { value: 900, configurable: true }
+    });
+    surface.style.paddingLeft = "18px";
+    surface.style.paddingRight = "18px";
+    document.body.append(surface);
+    surface.append(tableau);
+    document.documentElement.style.setProperty("--tableau-gap", "12px");
+
+    const resolved = resolveAutoFitLayout(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, "bottom", tableau);
+
+    expect(resolved?.controlLayout).toBe("side");
+    expect(resolved?.metrics.cardWidth).toBe(144);
+    expect(document.documentElement.style.getPropertyValue("--card-fit-width")).toBe("");
+    surface.remove();
+  });
+
   it("places resources in the side rail only when the tableau and dock fit together", () => {
     const surface = document.createElement("section");
     const tableau = document.createElement("div");
@@ -315,11 +338,11 @@ describe("App", () => {
     document.body.append(surface);
     surface.append(tableau);
 
-    expect(getBoardControlLayout(surface, { cardWidth: 172, stackVisibleRatio: 0.28, availableHeight: 600 })).toBe(
+    expect(getBoardControlLayout(surface, { cardWidth: 172, stackVisibleRatio: 0.28, availableHeight: 600 }, "bottom")).toBe(
       "bottom"
     );
-    expect(getBoardControlLayout(surface, { cardWidth: 172, stackVisibleRatio: 0.28, availableHeight: 600 })).toBe(
-      "bottom"
+    expect(getBoardControlLayout(surface, { cardWidth: 172, stackVisibleRatio: 0.28, availableHeight: 600 }, "side")).toBe(
+      "side"
     );
     surface.remove();
   });
@@ -348,7 +371,7 @@ describe("App", () => {
     surface.remove();
   });
 
-  it("shrinks stack spacing before auto-fit card width hits the visible play height", () => {
+  it("uses measured play-surface height instead of transient viewport height", () => {
     const surface = document.createElement("section");
     Object.defineProperties(surface, {
       clientWidth: { value: 1200, configurable: true },
@@ -377,7 +400,7 @@ describe("App", () => {
 
     applyAutoFitScale(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, gameWithTallColumn(16));
 
-    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(56);
+    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(115);
     expect(parseFloat(document.documentElement.style.getPropertyValue("--card-stack-visible-ratio"))).toBe(0.28);
     surface.remove();
   });

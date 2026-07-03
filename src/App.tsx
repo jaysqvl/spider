@@ -92,6 +92,7 @@ const SIDE_RESOURCE_MAX_WIDTH_PX = 190;
 const SIDE_RESOURCE_WIDTH_RATIO = 1.35;
 const SIDE_RESOURCE_ENTER_GAP_PX = 18;
 const SIDE_RESOURCE_ENTER_HEIGHT_PX = 740;
+const SIDE_RESOURCE_LAYOUT_HYSTERESIS_PX = 24;
 const TOAST_VISIBLE_MS = 5200;
 const UPDATE_TOAST_ID = "update-status";
 const BLOCKED_RUN_FEEDBACK_MS = 1100;
@@ -269,20 +270,18 @@ export default function App() {
 
     const updateFit = () => {
       fitFrame = null;
-      const bottomLayoutMetrics = applyAutoFitScale(surface, settings, undefined, undefined, "bottom");
+      const resolvedLayout = resolveAutoFitLayout(surface, settings, controlLayoutRef.current);
 
-      if (bottomLayoutMetrics) {
-        const nextControlLayout = getBoardControlLayout(surface, bottomLayoutMetrics);
-        const nextMetrics =
-          nextControlLayout === "side"
-            ? applyAutoFitScale(surface, settings, undefined, undefined, "side") ?? bottomLayoutMetrics
-            : bottomLayoutMetrics;
+      if (resolvedLayout) {
+        applyResolvedAutoFitMetrics(settings, resolvedLayout.metrics);
 
-        setAutoFitMetrics((current) => (areAutoFitMetricsEqual(current, nextMetrics) ? current : nextMetrics));
+        setAutoFitMetrics((current) =>
+          areAutoFitMetricsEqual(current, resolvedLayout.metrics) ? current : resolvedLayout.metrics
+        );
 
-        if (nextControlLayout !== controlLayoutRef.current) {
-          controlLayoutRef.current = nextControlLayout;
-          setControlLayout(nextControlLayout);
+        if (resolvedLayout.controlLayout !== controlLayoutRef.current) {
+          controlLayoutRef.current = resolvedLayout.controlLayout;
+          setControlLayout(resolvedLayout.controlLayout);
           fitFrame = window.requestAnimationFrame(updateFit);
         }
       }
@@ -1596,14 +1595,64 @@ export function applyAutoFitScale(
   tableauElement?: HTMLElement | null,
   controlLayout: BoardControlLayout = "bottom"
 ): AutoFitMetrics | null {
-  const root = document.documentElement;
-
   if (settings.gameScaleMode !== "auto") {
-    root.style.removeProperty("--card-fit-width");
-    root.style.removeProperty("--card-stack-visible-ratio");
+    applyResolvedAutoFitMetrics(settings, DEFAULT_AUTO_FIT_METRICS);
     return DEFAULT_AUTO_FIT_METRICS;
   }
 
+  const metrics = calculateAutoFitMetrics(surface, settings, tableauElement, controlLayout);
+
+  if (metrics) {
+    applyResolvedAutoFitMetrics(settings, metrics);
+  }
+
+  return metrics;
+}
+
+interface ResolvedAutoFitLayout {
+  controlLayout: BoardControlLayout;
+  metrics: AutoFitMetrics;
+}
+
+export function resolveAutoFitLayout(
+  surface: HTMLElement,
+  settings: Settings,
+  currentControlLayout: BoardControlLayout = "bottom",
+  tableauElement?: HTMLElement | null
+): ResolvedAutoFitLayout | null {
+  if (settings.gameScaleMode !== "auto") {
+    return {
+      controlLayout: "bottom",
+      metrics: DEFAULT_AUTO_FIT_METRICS
+    };
+  }
+
+  const bottomMetrics = calculateAutoFitMetrics(surface, settings, tableauElement, "bottom");
+
+  if (!bottomMetrics) {
+    return null;
+  }
+
+  const sideMetrics = calculateAutoFitMetrics(surface, settings, tableauElement, "side");
+  const nextControlLayout =
+    getBoardControlLayout(surface, bottomMetrics, currentControlLayout) === "side" ||
+    (sideMetrics !== null && getBoardControlLayout(surface, sideMetrics, currentControlLayout) === "side")
+      ? "side"
+      : "bottom";
+  const metrics = nextControlLayout === "side" ? sideMetrics ?? bottomMetrics : bottomMetrics;
+
+  return {
+    controlLayout: nextControlLayout,
+    metrics
+  };
+}
+
+function calculateAutoFitMetrics(
+  surface: HTMLElement,
+  settings: Settings,
+  tableauElement: HTMLElement | null | undefined,
+  controlLayout: BoardControlLayout
+): AutoFitMetrics | null {
   const surfaceWidth = getVisibleInlineSize(surface);
   const surfaceHeight = getVisibleBlockSize(surface);
 
@@ -1628,9 +1677,6 @@ export function applyAutoFitScale(
   const fitWidth = Math.floor(Math.max(1, Math.min(horizontalFit, verticalFit, heightBalancedFit)));
   const stackVisibleRatio = CARD_STACK_VISIBLE_RATIO;
 
-  root.style.setProperty("--card-fit-width", `${fitWidth}px`);
-  root.style.setProperty("--card-stack-visible-ratio", stackVisibleRatio.toFixed(3));
-
   return {
     cardWidth: fitWidth,
     stackVisibleRatio,
@@ -1638,9 +1684,29 @@ export function applyAutoFitScale(
   };
 }
 
+function applyResolvedAutoFitMetrics(settings: Settings, metrics: AutoFitMetrics): void {
+  const root = document.documentElement;
+
+  if (settings.gameScaleMode !== "auto" || metrics.cardWidth === null) {
+    root.style.removeProperty("--card-fit-width");
+    root.style.removeProperty("--card-stack-visible-ratio");
+    return;
+  }
+
+  setRootStyleProperty(root, "--card-fit-width", `${metrics.cardWidth}px`);
+  setRootStyleProperty(root, "--card-stack-visible-ratio", metrics.stackVisibleRatio.toFixed(3));
+}
+
+function setRootStyleProperty(root: HTMLElement, property: string, value: string): void {
+  if (root.style.getPropertyValue(property) !== value) {
+    root.style.setProperty(property, value);
+  }
+}
+
 export function getBoardControlLayout(
   surface: HTMLElement,
-  metrics: AutoFitMetrics
+  metrics: AutoFitMetrics,
+  currentControlLayout: BoardControlLayout = "bottom"
 ): BoardControlLayout {
   if (metrics.cardWidth === null) {
     return "bottom";
@@ -1655,8 +1721,12 @@ export function getBoardControlLayout(
   const availableInlineSpace = Math.max(0, surfaceWidth - inlinePadding);
   const resourceWidth = getSideResourceWidth(metrics.cardWidth);
   const requiredInlineSpace = tableauWidth + resourceWidth + SIDE_RESOURCE_ENTER_GAP_PX;
+  const canStaySide =
+    currentControlLayout === "side" &&
+    availableInlineSpace + SIDE_RESOURCE_LAYOUT_HYSTERESIS_PX >= requiredInlineSpace &&
+    surfaceHeight + SIDE_RESOURCE_LAYOUT_HYSTERESIS_PX >= SIDE_RESOURCE_ENTER_HEIGHT_PX;
 
-  return availableInlineSpace >= requiredInlineSpace && surfaceHeight >= SIDE_RESOURCE_ENTER_HEIGHT_PX
+  return canStaySide || (availableInlineSpace >= requiredInlineSpace && surfaceHeight >= SIDE_RESOURCE_ENTER_HEIGHT_PX)
     ? "side"
     : "bottom";
 }
@@ -1846,30 +1916,24 @@ function areAutoFitMetricsEqual(current: AutoFitMetrics, next: AutoFitMetrics): 
 
 function getVisibleInlineSize(surface: HTMLElement): number {
   const rect = surface.getBoundingClientRect();
-  const viewportWidth = getViewportWidth();
-  const visibleRectWidth =
-    viewportWidth > 0 && rect.width > 0
-      ? Math.max(0, Math.min(rect.right, viewportWidth) - Math.max(rect.left, 0))
-      : 0;
-  const candidates = [surface.clientWidth, rect.width, visibleRectWidth, viewportWidth, document.documentElement.clientWidth].filter(
-    isPositiveFiniteNumber
-  );
+  const candidates = [surface.clientWidth, rect.width].filter(isPositiveFiniteNumber);
 
-  return candidates.length > 0 ? Math.min(...candidates) : surface.clientWidth;
+  if (candidates.length > 0) {
+    return Math.min(...candidates);
+  }
+
+  return getViewportWidth();
 }
 
 function getVisibleBlockSize(surface: HTMLElement): number {
   const rect = surface.getBoundingClientRect();
-  const viewportHeight = getViewportHeight();
-  const visibleRectHeight =
-    viewportHeight > 0 && rect.height > 0
-      ? Math.max(0, Math.min(rect.bottom, viewportHeight) - Math.max(rect.top, 0))
-      : 0;
-  const candidates = [surface.clientHeight, rect.height, visibleRectHeight, viewportHeight, document.documentElement.clientHeight].filter(
-    isPositiveFiniteNumber
-  );
+  const candidates = [surface.clientHeight, rect.height].filter(isPositiveFiniteNumber);
 
-  return candidates.length > 0 ? Math.min(...candidates) : surface.clientHeight;
+  if (candidates.length > 0) {
+    return Math.min(...candidates);
+  }
+
+  return getViewportHeight();
 }
 
 function getViewportWidth(): number {
