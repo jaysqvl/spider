@@ -35,8 +35,7 @@ export function nextDevVersion(baseVersion, buildIdentifier) {
     throw new Error(`Base version must be semver: ${baseVersion}`);
   }
 
-  const patch = Number(match.groups.patch) + 1;
-  return `${match.groups.major}.${match.groups.minor}.${patch}-dev.${normalizePrereleaseIdentifier(
+  return `${match.groups.major}.${match.groups.minor}.${match.groups.patch}-dev.${normalizePrereleaseIdentifier(
     buildIdentifier
   )}`;
 }

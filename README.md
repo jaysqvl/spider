@@ -104,7 +104,7 @@ If this repository or its releases are private, set `TAURI_UPDATER_ENDPOINT` to 
 
 Windows and macOS code-signing certificates are optional for early test builds, but Tauri updater signing is required for releases.
 
-`.github/workflows/dev-release.yml` publishes a fast `dev-latest` prerelease on pushes to `main` and manual dispatches. It builds Apple Silicon macOS and Windows x64 installers, rewrites the CI workspace to a prerelease version such as `0.1.7-dev.123.1`, and points `Spider Dev` at `https://github.com/jaysqvl/spider/releases/download/dev-latest/latest.json` for automatic dev-channel updates. It intentionally skips the slower macOS Intel runner so local testing artifacts appear quickly.
+`.github/workflows/dev-release.yml` publishes a fast `dev-latest` prerelease on pushes to `main` and manual dispatches. It builds Apple Silicon macOS and Windows x64 installers, rewrites the CI workspace to a prerelease of the current target version such as `0.2.0-dev.123.1`, and points `Spider Dev` at `https://github.com/jaysqvl/spider/releases/download/dev-latest/latest.json` for automatic dev-channel updates. It intentionally skips the slower macOS Intel runner so local testing artifacts appear quickly.
 
 Optional release secrets:
 

@@ -12,8 +12,8 @@ import {
 } from "./prepare-dev-release.mjs";
 
 describe("prepare dev release", () => {
-  it("bumps the next patch into a dev prerelease", () => {
-    expect(nextDevVersion("0.1.6", "123.2")).toBe("0.1.7-dev.123.2");
+  it("turns the target version into a dev prerelease", () => {
+    expect(nextDevVersion("0.2.0", "123.2")).toBe("0.2.0-dev.123.2");
   });
 
   it("normalizes build identifiers into semver-safe prerelease parts", () => {
@@ -23,7 +23,7 @@ describe("prepare dev release", () => {
   it("rejects explicit versions outside the dev channel", () => {
     expect(() =>
       resolveDevVersion({
-        baseVersion: "0.1.6",
+        baseVersion: "0.2.0",
         explicitVersion: "0.1.7",
         buildIdentifier: "1"
       })
@@ -34,39 +34,39 @@ describe("prepare dev release", () => {
     const lockfile = applyPackageLockVersion(
       {
         name: "spider",
-        version: "0.1.6",
+        version: "0.2.0",
         packages: {
           "": {
             name: "spider",
-            version: "0.1.6"
+            version: "0.2.0"
           }
         }
       },
-      "0.1.7-dev.99"
+      "0.2.0-dev.99"
     );
 
-    expect(lockfile.version).toBe("0.1.7-dev.99");
-    expect(lockfile.packages[""].version).toBe("0.1.7-dev.99");
+    expect(lockfile.version).toBe("0.2.0-dev.99");
+    expect(lockfile.packages[""].version).toBe("0.2.0-dev.99");
   });
 
   it("updates native package versions without touching dependency versions", () => {
-    const cargoToml = '[package]\nname = "spider"\nversion = "0.1.6"\n\n[dependencies]\nserde = "1"\n';
+    const cargoToml = '[package]\nname = "spider"\nversion = "0.2.0"\n\n[dependencies]\nserde = "1"\n';
     const cargoLock =
-      '[[package]]\nname = "serde"\nversion = "1.0.0"\n\n[[package]]\nname = "spider"\nversion = "0.1.6"\n';
+      '[[package]]\nname = "serde"\nversion = "1.0.0"\n\n[[package]]\nname = "spider"\nversion = "0.2.0"\n';
     const windowsCargoLock =
-      '[[package]]\r\nname = "serde"\r\nversion = "1.0.0"\r\n\r\n[[package]]\r\nname = "spider"\r\nversion = "0.1.6"\r\n';
+      '[[package]]\r\nname = "serde"\r\nversion = "1.0.0"\r\n\r\n[[package]]\r\nname = "spider"\r\nversion = "0.2.0"\r\n';
 
-    expect(replaceCargoPackageVersion(cargoToml, "0.1.7-dev.99")).toContain(
-      'version = "0.1.7-dev.99"'
+    expect(replaceCargoPackageVersion(cargoToml, "0.2.0-dev.99")).toContain(
+      'version = "0.2.0-dev.99"'
     );
-    expect(replaceCargoLockPackageVersion(cargoLock, "0.1.7-dev.99")).toContain(
-      'name = "spider"\nversion = "0.1.7-dev.99"'
+    expect(replaceCargoLockPackageVersion(cargoLock, "0.2.0-dev.99")).toContain(
+      'name = "spider"\nversion = "0.2.0-dev.99"'
     );
-    expect(replaceCargoLockPackageVersion(cargoLock, "0.1.7-dev.99")).toContain(
+    expect(replaceCargoLockPackageVersion(cargoLock, "0.2.0-dev.99")).toContain(
       'name = "serde"\nversion = "1.0.0"'
     );
-    expect(replaceCargoLockPackageVersion(windowsCargoLock, "0.1.7-dev.99")).toContain(
-      'name = "spider"\r\nversion = "0.1.7-dev.99"'
+    expect(replaceCargoLockPackageVersion(windowsCargoLock, "0.2.0-dev.99")).toContain(
+      'name = "spider"\r\nversion = "0.2.0-dev.99"'
     );
   });
 
@@ -74,7 +74,7 @@ describe("prepare dev release", () => {
     const config = applyDevTauriConfig(
       {
         productName: "Spider",
-        version: "0.1.6",
+        version: "0.2.0",
         identifier: "com.jaysqvl.spider",
         app: {
           windows: [
@@ -94,14 +94,14 @@ describe("prepare dev release", () => {
         }
       },
       {
-        version: "0.1.7-dev.99",
+        version: "0.2.0-dev.99",
         endpoint: "https://github.com/jaysqvl/spider/releases/download/dev-latest/latest.json"
       }
     );
 
     expect(config.productName).toBe(devProductName);
     expect(config.identifier).toBe(devIdentifier);
-    expect(config.version).toBe("0.1.7-dev.99");
+    expect(config.version).toBe("0.2.0-dev.99");
     expect(config.app.windows[0].title).toBe(devProductName);
     expect(config.plugins.updater.endpoints).toEqual([
       "https://github.com/jaysqvl/spider/releases/download/dev-latest/latest.json"
