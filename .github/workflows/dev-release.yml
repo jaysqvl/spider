@@ -129,6 +129,8 @@ jobs:
         run: npm test
 
       - name: Build frontend
+        env:
+          VITE_SPIDER_DEV_TOOLS: "true"
         run: npm run build
 
       - name: Rust format
@@ -198,6 +200,7 @@ jobs:
           APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY || '-' }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_SPIDER_DEV_TOOLS: "true"
         with:
           tagName: dev-latest
           releaseName: Spider Dev ${{ needs.prepare.outputs.version }}

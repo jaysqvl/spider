@@ -4,6 +4,9 @@
   "description": "Independent cross-platform Spider Solitaire desktop app.",
   "private": true,
   "type": "module",
+  "imports": {
+    "#dev-tools": "./src/dev/devTools.tsx"
+  },
   "license": "MIT",
   "author": "Jay Esquivel Jr",
   "scripts": {

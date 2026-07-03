@@ -3,6 +3,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type Ref,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -40,6 +41,7 @@ import { DIFFICULTIES, SUITS, type Card, type CardMove, type Difficulty, type Ga
 import { CardFace, CardView, SuitMark } from "./components/CardView";
 import { IconButton } from "./components/IconButton";
 import { Modal } from "./components/Modal";
+import { DevToolsHost } from "#dev-tools";
 import {
   checkForUpdates,
   installAvailableUpdate,
@@ -107,6 +109,11 @@ const MOVE_COVER_DETAIL_SETTLE_MS = 48;
 type ModalName = "settings" | "stats" | "about" | "reset" | null;
 type ToastTone = "info" | "success" | "error";
 export type BoardControlLayout = "bottom" | "side";
+
+interface DevToolsEnv {
+  DEV: boolean;
+  VITE_SPIDER_DEV_TOOLS?: string;
+}
 
 interface ToastMessage {
   id: string;
@@ -1184,6 +1191,13 @@ export default function App() {
     }
   }
 
+  function handleLoadToolGame(nextGame: GameState, message: string): void {
+    persistGame(nextGame);
+    setDragPreview(null);
+    dragPreviewRef.current = null;
+    setMessage(message);
+  }
+
   return (
     <main className="app-shell">
       <section
@@ -1208,6 +1222,7 @@ export default function App() {
             setModal("stats");
           }}
           onAbout={() => setModal("about")}
+          devToolsSlot={<DevToolsHost onLoadGame={handleLoadToolGame} />}
           onInstallUpdate={() => {
             void handleInstallUpdate();
           }}
@@ -1560,6 +1575,10 @@ export default function App() {
       ) : null}
     </main>
   );
+}
+
+export function shouldEnableDevTools(env: DevToolsEnv): boolean {
+  return env.DEV || env.VITE_SPIDER_DEV_TOOLS === "true";
 }
 
 function applyGameScale(root: HTMLElement, settings: Settings): void {
@@ -2104,6 +2123,7 @@ interface GameTopBarProps {
   game: GameState;
   selectedDifficulty: Difficulty;
   canInstallUpdate: boolean;
+  devToolsSlot?: ReactNode;
   onDifficultyChange: (difficulty: Difficulty) => void;
   onRestart: () => void;
   onSettings: () => void;
@@ -2117,6 +2137,7 @@ function GameTopBar({
   game,
   selectedDifficulty,
   canInstallUpdate,
+  devToolsSlot = null,
   onDifficultyChange,
   onRestart,
   onSettings,
@@ -2176,6 +2197,7 @@ function GameTopBar({
         {canInstallUpdate ? (
           <IconButton icon={<Download size={19} />} label="Install Update" compact onClick={onInstallUpdate} />
         ) : null}
+        {devToolsSlot}
         <IconButton icon={<BarChart3 size={19} />} label="Stats" compact onClick={onStats} />
         <IconButton icon={<Info size={19} />} label="About" compact onClick={onAbout} />
         <IconButton icon={<SettingsIcon size={19} />} label="Settings" compact onClick={onSettings} />

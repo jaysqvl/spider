@@ -1,7 +1,13 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import App, { applyAutoFitScale, getBoardControlLayout, getColumnCardReveals, resolveAutoFitLayout } from "./App";
+import App, {
+  applyAutoFitScale,
+  getBoardControlLayout,
+  getColumnCardReveals,
+  resolveAutoFitLayout,
+  shouldEnableDevTools
+} from "./App";
 import type { Card, GameState, Rank, Suit } from "./game/types";
 import { DEFAULT_SETTINGS } from "./persistence/types";
 import packageJson from "../package.json";
@@ -55,6 +61,30 @@ describe("App", () => {
     expect(parseFloat(document.documentElement.style.getPropertyValue("--card-preferred-width"))).toBeCloseTo(119.6);
     expect(container.querySelector(".score-strip")).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveClass("sr-only");
+  });
+
+  it("gates testing tools to local dev mode and the dev release channel", () => {
+    expect(shouldEnableDevTools({ DEV: true })).toBe(true);
+    expect(shouldEnableDevTools({ DEV: false, VITE_SPIDER_DEV_TOOLS: "true" })).toBe(true);
+    expect(shouldEnableDevTools({ DEV: false })).toBe(false);
+  });
+
+  it("loads dev-only stress states from the Testing panel", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Testing" }));
+    expect(await screen.findByRole("dialog", { name: "Testing" })).toBeInTheDocument();
+    await user.selectOptions(await screen.findByLabelText("Stress state"), "hidden-king-to-two");
+    await user.click(screen.getByRole("button", { name: "Load State" }));
+
+    expect(await screen.findByText("Dev state loaded: Hidden + K-to-2 vertical run.")).toBeInTheDocument();
+    await waitFor(() => {
+      const firstColumn = container.querySelector('[data-column-index="0"]');
+
+      expect(firstColumn?.querySelectorAll(".tableau-card")).toHaveLength(16);
+      expect(firstColumn?.querySelector('[aria-label="K of spades"]')).toBeInTheDocument();
+    });
   });
 
   it("summarizes completed sequences by active suit", async () => {
