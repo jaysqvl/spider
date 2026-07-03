@@ -93,7 +93,7 @@ test("keeps the resource dock out of the tableau and action buttons", async ({ p
   }
 });
 
-test("does not oscillate resource dock layout at the ultrawide threshold", async ({ page }) => {
+test("settles resource dock layout at the ultrawide threshold", async ({ page }) => {
   await page.goto("/");
   await loadScenario(page, "hidden-king-to-two");
   await page.setViewportSize({ width: 2001, height: 860 });
@@ -102,7 +102,7 @@ test("does not oscillate resource dock layout at the ultrawide threshold", async
   const samples = await page.evaluate(async () => {
     const frames: Array<{ layout: string; cardWidth: string }> = [];
 
-    for (let frame = 0; frame < 18; frame += 1) {
+    for (let frame = 0; frame < 30; frame += 1) {
       await new Promise((resolve) => requestAnimationFrame(resolve));
 
       const surface = document.querySelector<HTMLElement>(".play-surface");
@@ -114,9 +114,11 @@ test("does not oscillate resource dock layout at the ultrawide threshold", async
 
     return frames;
   });
+  const trailingSamples = samples.slice(-12);
+  const sequence = samples.map((sample) => `${sample.layout}:${sample.cardWidth}`).join(" -> ");
 
-  expect(new Set(samples.map((sample) => sample.layout))).toEqual(new Set(["bottom"]));
-  expect(new Set(samples.map((sample) => sample.cardWidth)).size).toBe(1);
+  expect(new Set(trailingSamples.map((sample) => sample.layout)), sequence).toEqual(new Set(["bottom"]));
+  expect(new Set(trailingSamples.map((sample) => sample.cardWidth)).size, sequence).toBe(1);
 });
 
 async function loadScenario(page: Page, scenarioId: string): Promise<void> {
