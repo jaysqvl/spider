@@ -1,27 +1,37 @@
-import type { CSSProperties, MouseEvent, PointerEvent } from "react";
-import { rankLabel, suitSymbol } from "../game/engine";
+import { memo, type MouseEvent, type PointerEvent } from "react";
+import { rankLabel } from "../game/engine";
 import type { Card, Rank, Suit } from "../game/types";
 import type { CardBack } from "../persistence/types";
 
 interface CardViewProps {
   card: Card;
   cardBack: CardBack;
+  columnIndex?: number;
+  cardIndex?: number;
   isSelected: boolean;
   isHinted: boolean;
   isDraggingSource: boolean;
   isMovable: boolean;
+  isBlockedSource?: boolean;
+  isBlockedAttachment?: boolean;
+  isBlockedBreak?: boolean;
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   onMouseDown: (event: MouseEvent<HTMLButtonElement>) => void;
   onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void;
 }
 
-export function CardView({
+export const CardView = memo(function CardView({
   card,
   cardBack,
+  columnIndex,
+  cardIndex,
   isSelected,
   isHinted,
   isDraggingSource,
   isMovable,
+  isBlockedSource = false,
+  isBlockedAttachment = false,
+  isBlockedBreak = false,
   onClick,
   onMouseDown,
   onPointerDown
@@ -40,11 +50,16 @@ export function CardView({
         isSelected ? "is-selected" : "",
         isHinted ? "is-hinted" : "",
         isDraggingSource ? "is-dragging-source" : "",
-        isMovable ? "is-movable" : ""
+        isMovable ? "is-movable" : "",
+        isBlockedSource ? "is-blocked-source" : "",
+        isBlockedAttachment ? "is-blocked-attachment" : "",
+        isBlockedBreak ? "is-blocked-break" : ""
       ].join(" ")}
       aria-label={label}
       aria-pressed={isSelected}
       disabled={!card.faceUp}
+      data-card-column-index={columnIndex}
+      data-card-index={cardIndex}
       onClick={onClick}
       onMouseDown={onMouseDown}
       onPointerDown={onPointerDown}
@@ -53,91 +68,93 @@ export function CardView({
       <CardFace card={card} />
     </button>
   );
-}
+});
 
 interface CardFaceProps {
   card: Card;
 }
 
 interface PipPlacement {
-  area: string;
+  x: number;
+  y: number;
+  size?: number;
   inverted?: boolean;
   emphasis?: boolean;
 }
 
 const PIP_LAYOUTS: Partial<Record<Rank, PipPlacement[]>> = {
-  1: [{ area: "3 / 2", emphasis: true }],
+  1: [{ x: 50, y: 72, emphasis: true }],
   2: [
-    { area: "2 / 2" },
-    { area: "4 / 2", inverted: true }
+    { x: 50, y: 45 },
+    { x: 50, y: 99, inverted: true }
   ],
   3: [
-    { area: "2 / 2" },
-    { area: "3 / 2" },
-    { area: "4 / 2", inverted: true }
+    { x: 50, y: 43 },
+    { x: 50, y: 72 },
+    { x: 50, y: 101, inverted: true }
   ],
   4: [
-    { area: "2 / 1" },
-    { area: "2 / 3" },
-    { area: "4 / 1", inverted: true },
-    { area: "4 / 3", inverted: true }
+    { x: 34, y: 43 },
+    { x: 66, y: 43 },
+    { x: 34, y: 101, inverted: true },
+    { x: 66, y: 101, inverted: true }
   ],
   5: [
-    { area: "2 / 1" },
-    { area: "2 / 3" },
-    { area: "3 / 2" },
-    { area: "4 / 1", inverted: true },
-    { area: "4 / 3", inverted: true }
+    { x: 34, y: 43 },
+    { x: 66, y: 43 },
+    { x: 50, y: 72 },
+    { x: 34, y: 101, inverted: true },
+    { x: 66, y: 101, inverted: true }
   ],
   6: [
-    { area: "1 / 1" },
-    { area: "1 / 3" },
-    { area: "3 / 1" },
-    { area: "3 / 3" },
-    { area: "5 / 1", inverted: true },
-    { area: "5 / 3", inverted: true }
+    { x: 34, y: 41 },
+    { x: 66, y: 41 },
+    { x: 34, y: 72 },
+    { x: 66, y: 72 },
+    { x: 34, y: 103, inverted: true },
+    { x: 66, y: 103, inverted: true }
   ],
   7: [
-    { area: "1 / 1" },
-    { area: "1 / 3" },
-    { area: "2 / 2" },
-    { area: "3 / 1" },
-    { area: "3 / 3" },
-    { area: "5 / 1", inverted: true },
-    { area: "5 / 3", inverted: true }
+    { x: 34, y: 40 },
+    { x: 66, y: 40 },
+    { x: 50, y: 55 },
+    { x: 34, y: 72 },
+    { x: 66, y: 72 },
+    { x: 34, y: 104, inverted: true },
+    { x: 66, y: 104, inverted: true }
   ],
   8: [
-    { area: "1 / 1" },
-    { area: "1 / 3" },
-    { area: "2 / 2" },
-    { area: "3 / 1" },
-    { area: "3 / 3" },
-    { area: "4 / 2", inverted: true },
-    { area: "5 / 1", inverted: true },
-    { area: "5 / 3", inverted: true }
+    { x: 34, y: 40 },
+    { x: 66, y: 40 },
+    { x: 50, y: 56 },
+    { x: 34, y: 72 },
+    { x: 66, y: 72 },
+    { x: 50, y: 88, inverted: true },
+    { x: 34, y: 104, inverted: true },
+    { x: 66, y: 104, inverted: true }
   ],
   9: [
-    { area: "1 / 1" },
-    { area: "1 / 3" },
-    { area: "2 / 2" },
-    { area: "3 / 1" },
-    { area: "3 / 2" },
-    { area: "3 / 3" },
-    { area: "4 / 2", inverted: true },
-    { area: "5 / 1", inverted: true },
-    { area: "5 / 3", inverted: true }
+    { x: 34, y: 38, size: 20 },
+    { x: 66, y: 38, size: 20 },
+    { x: 34, y: 60, size: 20 },
+    { x: 66, y: 60, size: 20 },
+    { x: 50, y: 72, size: 20 },
+    { x: 34, y: 84, size: 20, inverted: true },
+    { x: 66, y: 84, size: 20, inverted: true },
+    { x: 34, y: 106, size: 20, inverted: true },
+    { x: 66, y: 106, size: 20, inverted: true }
   ],
   10: [
-    { area: "1 / 1" },
-    { area: "1 / 3" },
-    { area: "2 / 1" },
-    { area: "2 / 3" },
-    { area: "3 / 1" },
-    { area: "3 / 3" },
-    { area: "4 / 1", inverted: true },
-    { area: "4 / 3", inverted: true },
-    { area: "5 / 1", inverted: true },
-    { area: "5 / 3", inverted: true }
+    { x: 34, y: 37, size: 20 },
+    { x: 66, y: 37, size: 20 },
+    { x: 50, y: 52, size: 18 },
+    { x: 34, y: 62, size: 20 },
+    { x: 66, y: 62, size: 20 },
+    { x: 34, y: 82, size: 20 },
+    { x: 66, y: 82, size: 20 },
+    { x: 50, y: 97, size: 18, inverted: true },
+    { x: 34, y: 107, size: 20, inverted: true },
+    { x: 66, y: 107, size: 20, inverted: true }
   ]
 };
 
@@ -153,69 +170,83 @@ const COURT_LABELS = {
   13: "KING"
 } as const;
 
-export function CardFace({ card }: CardFaceProps) {
+export const CardFace = memo(function CardFace({ card }: CardFaceProps) {
   if (!card.faceUp) {
     return <span className="card__back-mark" aria-hidden="true" />;
   }
 
-  const symbol = suitSymbol(card.suit);
-
   return (
-    <span className="card__face">
-      <CardCorner rank={card.rank} symbol={symbol} />
-      <span className="card__center">
+    <svg className="card__face" viewBox="0 0 100 138" aria-hidden="true" focusable="false">
+      <rect className="card__face-inset" x="2" y="2" width="96" height="134" rx="5" />
+      <CardCorner rank={card.rank} suit={card.suit} />
+      <StackIndex rank={card.rank} suit={card.suit} />
+      <g className="card__center">
         {isCourtRank(card.rank) ? (
-          <CourtCard rank={card.rank} suit={card.suit} symbol={symbol} />
+          <CourtCard rank={card.rank} suit={card.suit} />
         ) : (
-          <PipCard rank={card.rank} symbol={symbol} />
+          <PipCard rank={card.rank} suit={card.suit} />
         )}
-      </span>
-      <CardCorner rank={card.rank} symbol={symbol} isBottom />
-    </span>
+      </g>
+      <CardCorner rank={card.rank} suit={card.suit} isBottom />
+    </svg>
   );
-}
+});
 
-function CardCorner({ rank, symbol, isBottom = false }: { rank: Rank; symbol: string; isBottom?: boolean }) {
+function CardCorner({ rank, suit, isBottom = false }: { rank: Rank; suit: Suit; isBottom?: boolean }) {
   return (
-    <span className={["card__corner", isBottom ? "card__corner--bottom" : ""].join(" ")}>
-      <span className="card__rank">{rankLabel(rank)}</span>
-      <span className="card__corner-suit">{symbol}</span>
-    </span>
+    <g className={["card__corner", isBottom ? "card__corner--bottom" : "card__corner--top"].join(" ")}>
+      <text className="card__rank" x="13.5" y="17" fontSize="17">
+        {rankLabel(rank)}
+      </text>
+      <SuitMark suit={suit} x={13.5} y={36} size={15} className="card__corner-suit" />
+    </g>
   );
 }
 
-function PipCard({ rank, symbol }: { rank: Rank; symbol: string }) {
+function StackIndex({ rank, suit }: { rank: Rank; suit: Suit }) {
+  const rankText = rankLabel(rank);
+  const suitX = rankText === "10" ? 39 : 32;
+
+  return (
+    <g className="card__stack-index">
+      <text className="card__stack-rank" x="9" y="18" fontSize="22">
+        {rankText}
+      </text>
+      <SuitMark suit={suit} x={suitX} y={18} size={13} className="card__stack-suit" />
+    </g>
+  );
+}
+
+function PipCard({ rank, suit }: { rank: Rank; suit: Suit }) {
   const placements = PIP_LAYOUTS[rank] ?? [];
 
   return (
-    <span className={["card__pips", `card__pips--rank-${rank}`].join(" ")} aria-hidden="true">
+    <g className={["card__pips", `card__pips--rank-${rank}`].join(" ")}>
       {placements.map((pip, index) => (
-        <span
+        <SuitMark
           key={`${rank}-${index}`}
+          suit={suit}
           className={[
             "card__pip",
             pip.inverted ? "card__pip--inverted" : "",
             pip.emphasis ? "card__pip--emphasis" : ""
           ].join(" ")}
-          style={rank === 1 ? undefined : ({ gridArea: pip.area } as CSSProperties)}
-        >
-          {symbol}
-        </span>
+          x={pip.x}
+          y={pip.y}
+          size={pip.size ?? (pip.emphasis ? 50 : 25)}
+          inverted={pip.inverted}
+        />
       ))}
-    </span>
+    </g>
   );
 }
 
-function CourtCard({ rank, suit, symbol }: { rank: 11 | 12 | 13; suit: Suit; symbol: string }) {
+function CourtCard({ rank, suit }: { rank: 11 | 12 | 13; suit: Suit }) {
   const name = COURT_NAMES[rank];
 
   return (
-    <span className={["card__court", `card__court--${name}`, `card__court--${suit}`].join(" ")} aria-hidden="true">
-      <svg
-        className={["card__court-art", `card__court-art--${name}`].join(" ")}
-        viewBox="0 0 100 136"
-        focusable="false"
-      >
+    <g className={["card__court", `card__court--${name}`, `card__court--${suit}`].join(" ")}>
+      <g className={["card__court-art", `card__court-art--${name}`].join(" ")} transform="translate(16 23) scale(0.68)">
         <rect className="card__court-panel" x="4" y="6" width="92" height="124" rx="14" />
         <path className="card__court-robe" d="M24 113c6-25 18-38 26-38s20 13 26 38c-12 7-40 7-52 0Z" />
         <path className="card__court-sash" d="M35 80c12 15 23 26 39 34" />
@@ -234,18 +265,67 @@ function CourtCard({ rank, suit, symbol }: { rank: 11 | 12 | 13; suit: Suit; sym
             <path className="card__court-plume" d="M64 31c13-18 22-17 20-1-8-5-13-4-20 1Z" />
           </>
         ) : null}
-        <text className="card__court-symbol card__court-symbol--top" x="50" y="25">
-          {symbol}
-        </text>
-        <text className="card__court-title" x="50" y="104">
+        <SuitMark suit={suit} x={50} y={24} size={15} className="card__court-symbol card__court-symbol--top" />
+        <text className="card__court-title" x="50" y="104" fontSize="9">
           {COURT_LABELS[rank]}
         </text>
-        <text className="card__court-symbol card__court-symbol--bottom" x="50" y="123">
-          {symbol}
-        </text>
-      </svg>
-    </span>
+        <SuitMark
+          suit={suit}
+          x={50}
+          y={123}
+          size={15}
+          inverted
+          className="card__court-symbol card__court-symbol--bottom"
+        />
+      </g>
+    </g>
   );
+}
+
+export function SuitMark({
+  suit,
+  x,
+  y,
+  size,
+  inverted = false,
+  className = ""
+}: {
+  suit: Suit;
+  x: number;
+  y: number;
+  size: number;
+  inverted?: boolean;
+  className?: string;
+}) {
+  return (
+    <g
+      className={["card__suit-mark", className].filter(Boolean).join(" ")}
+      data-suit-size={size}
+      transform={`translate(${x} ${y}) ${inverted ? "rotate(180)" : ""} scale(${size / 100}) translate(-50 -50)`}
+    >
+      <SuitShape suit={suit} />
+    </g>
+  );
+}
+
+function SuitShape({ suit }: { suit: Suit }) {
+  switch (suit) {
+    case "hearts":
+      return <path d="M50 86C42 74 14 58 14 34c0-14 10-23 22-23 7 0 12 4 14 11 2-7 7-11 14-11 12 0 22 9 22 23 0 24-28 40-36 52Z" />;
+    case "diamonds":
+      return <path d="M50 8 88 50 50 92 12 50Z" />;
+    case "spades":
+      return <path d="M50 10c-8 16-32 32-32 54 0 12 9 21 21 21 5 0 9-2 12-6-1 9-7 15-18 18h34c-11-3-17-9-18-18 3 4 7 6 12 6 12 0 21-9 21-21 0-22-24-38-32-54Z" />;
+    case "clubs":
+      return (
+        <>
+          <circle cx="50" cy="31" r="18" />
+          <circle cx="31" cy="59" r="18" />
+          <circle cx="69" cy="59" r="18" />
+          <path d="M50 65c0 15-7 24-18 31h36c-11-7-18-16-18-31Z" />
+        </>
+      );
+  }
 }
 
 function hairPathFor(rank: 11 | 12 | 13): string {
