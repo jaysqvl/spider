@@ -252,6 +252,10 @@ export default function App() {
     selectedMoveRef.current = selectedMove;
   }, [selectedMove]);
 
+  useLayoutEffect(() => {
+    controlLayoutRef.current = controlLayout;
+  }, [controlLayout]);
+
   useEffect(() => {
     const root = document.documentElement;
     const media = window.matchMedia?.("(prefers-color-scheme: dark)");
@@ -408,9 +412,7 @@ export default function App() {
         }
 
         if (resolvedLayout.controlLayout !== controlLayoutRef.current) {
-          controlLayoutRef.current = resolvedLayout.controlLayout;
           setControlLayout(resolvedLayout.controlLayout);
-          fitFrame = window.requestAnimationFrame(updateFit);
         }
       }
     };
