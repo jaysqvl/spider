@@ -82,6 +82,7 @@ Spider is a portfolio-quality desktop game project. Keep changes easy to review,
 - UI tests should cover workflows that can regress: new game, moving cards, stock dealing, undo/redo, hints, settings, stats, reset confirmation, responsiveness, and card stacking.
 - Persistence tests should cover save/load, migrations, corrupted data recovery, settings, stats, completed games, and reset behavior.
 - Do not mark a feature complete unless `npm run typecheck`, `npm run lint`, and `npm test` pass locally where the toolchain permits it.
+- Auto-fit, card sizing, resource dock, or responsive board changes must also pass `npm run test:layout`; inspect the generated screenshots when changing layout thresholds.
 - Before release, also run `npm run build` and `npm run verify:workflows`.
 - Native Rust/Tauri changes must satisfy `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` and native smoke checks in CI.
 

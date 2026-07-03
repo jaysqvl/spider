@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 const workflowDir = new URL("../.github/workflows/", import.meta.url);
 const fullShaActionRef = /^[^@\s]+@[a-f0-9]{40}$/i;
+const ciWorkflow = new URL("ci.yml", workflowDir);
 const releaseWorkflow = new URL("release.yml", workflowDir);
 const devReleaseWorkflow = new URL("dev-release.yml", workflowDir);
 
@@ -85,6 +86,27 @@ if (releaseAssetFailures.length > 0) {
 console.log(`Verified pinned workflow actions in ${files.length} workflow file(s).`);
 console.log("Verified user-facing release asset names.");
 
+const ciContent = await readFile(ciWorkflow, "utf8");
+const ciExpectations = [
+  {
+    label: "CI Playwright browser install",
+    pattern: "npx playwright install --with-deps chromium"
+  },
+  {
+    label: "CI browser layout tests",
+    pattern: "npm run test:layout"
+  }
+];
+const ciFailures = ciExpectations
+  .filter(({ pattern }) => !ciContent.includes(pattern))
+  .map(({ label, pattern }) => `${label} expectation is missing: ${pattern}`);
+
+if (ciFailures.length > 0) {
+  console.error("CI must run browser layout checks:");
+  ciFailures.forEach((failure) => console.error(`- ${failure}`));
+  process.exit(1);
+}
+
 const devReleaseContent = await readFile(devReleaseWorkflow, "utf8");
 const devReleaseExpectations = [
   {
@@ -111,6 +133,18 @@ const devReleaseExpectations = [
   {
     label: "dev release notes body",
     pattern: "releaseBody: ${{ needs.prepare.outputs.body }}"
+  },
+  {
+    label: "dev testing tools build flag",
+    pattern: 'VITE_SPIDER_DEV_TOOLS: "true"'
+  },
+  {
+    label: "dev browser layout gate",
+    pattern: "layout-check:"
+  },
+  {
+    label: "dev browser layout tests",
+    pattern: "npm run test:layout"
   }
 ];
 const devReleaseFailures = devReleaseExpectations
@@ -127,4 +161,25 @@ if (devReleaseFailures.length > 0) {
   process.exit(1);
 }
 
+const releaseQualityExpectations = [
+  {
+    label: "stable Playwright browser install",
+    pattern: "npx playwright install chromium"
+  },
+  {
+    label: "stable browser layout tests",
+    pattern: "npm run test:layout"
+  }
+];
+const releaseQualityFailures = releaseQualityExpectations
+  .filter(({ pattern }) => !releaseContent.includes(pattern))
+  .map(({ label, pattern }) => `${label} expectation is missing: ${pattern}`);
+
+if (releaseQualityFailures.length > 0) {
+  console.error("Stable release quality gate must run browser layout checks:");
+  releaseQualityFailures.forEach((failure) => console.error(`- ${failure}`));
+  process.exit(1);
+}
+
+console.log("Verified browser layout CI gates.");
 console.log("Verified dev release channel configuration.");

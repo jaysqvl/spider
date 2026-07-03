@@ -128,6 +128,12 @@ jobs:
       - name: Frontend tests
         run: npm test
 
+      - name: Install Playwright browser
+        run: npx playwright install chromium
+
+      - name: Browser layout tests
+        run: npm run test:layout
+
       - name: Build frontend
         run: npm run build
 

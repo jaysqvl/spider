@@ -63,9 +63,34 @@ jobs:
           gh release delete dev-latest --yes --cleanup-tag || true
           git push origin :refs/tags/dev-latest || true
 
+  layout-check:
+    name: Browser layout checks
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser layout tests
+        run: npm run test:layout
+
   build:
     name: Build and publish ${{ matrix.name }}
-    needs: prepare
+    needs: [prepare, layout-check]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
