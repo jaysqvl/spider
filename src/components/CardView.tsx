@@ -193,19 +193,22 @@ export const CardFace = memo(function CardFace({ card }: CardFaceProps) {
 });
 
 function CardCorner({ rank, suit, isBottom = false }: { rank: Rank; suit: Suit; isBottom?: boolean }) {
+  const rankText = rankLabel(rank);
+  const suitX = getIndexSuitX(rankText);
+
   return (
     <g className={["card__corner", isBottom ? "card__corner--bottom" : "card__corner--top"].join(" ")}>
-      <text className="card__rank" x="13.5" y="17" fontSize="17">
-        {rankLabel(rank)}
+      <text className="card__rank" x="9" y="18" fontSize="22" textAnchor="start">
+        {rankText}
       </text>
-      <SuitMark suit={suit} x={13.5} y={36} size={15} className="card__corner-suit" />
+      <SuitMark suit={suit} x={suitX} y={18} size={13} className="card__corner-suit" />
     </g>
   );
 }
 
 function StackIndex({ rank, suit }: { rank: Rank; suit: Suit }) {
   const rankText = rankLabel(rank);
-  const suitX = rankText === "10" ? 39 : 32;
+  const suitX = getIndexSuitX(rankText);
 
   return (
     <g className="card__stack-index">
@@ -215,6 +218,10 @@ function StackIndex({ rank, suit }: { rank: Rank; suit: Suit }) {
       <SuitMark suit={suit} x={suitX} y={18} size={13} className="card__stack-suit" />
     </g>
   );
+}
+
+function getIndexSuitX(rankText: string): number {
+  return rankText === "10" ? 39 : 32;
 }
 
 function PipCard({ rank, suit }: { rank: Rank; suit: Suit }) {

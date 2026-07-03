@@ -493,7 +493,7 @@ describe("App", () => {
     expect(faceUpCard?.querySelector(".card__center")).toBeInTheDocument();
     expect(Number(cornerRank?.getAttribute("font-size"))).toBeGreaterThanOrEqual(17);
     expect(cornerSuit?.tagName.toLowerCase()).toBe("g");
-    expect(Number(cornerSuit?.getAttribute("data-suit-size"))).toBeGreaterThanOrEqual(14);
+    expect(Number(cornerSuit?.getAttribute("data-suit-size"))).toBeGreaterThanOrEqual(13);
     expect(Number(faceUpCard?.querySelector(".card__pip")?.getAttribute("data-suit-size"))).toBeGreaterThan(
       Number(cornerSuit?.getAttribute("data-suit-size"))
     );

@@ -35,6 +35,7 @@ Spider is a portfolio-quality desktop game project. Keep changes easy to review,
 - Card faces should render as cohesive card units. Prefer a single card-local SVG viewBox for corners, pips, and court art over independently capped CSS text fragments.
 - Corner ranks and their suit marks must scale together as a readable pair. Do not enlarge center pips while leaving the index tiny.
 - Corner index suit marks must stay visually subordinate to central pips so they do not read as extra pips or make card values ambiguous.
+- Corner rank/suit geometry must stay identical between full card faces and covered stack indexes. Do not move the suit from under the rank to beside it, or change rank size, when a card becomes covered or moves.
 - Suit marks should be drawn with card-local SVG geometry, not font glyphs, so hearts, spades, clubs, and diamonds stay crisp at every card size.
 - Keep core controls visible and dependable. Do not hide New Game, Restart, or primary utility controls behind a hover-only top-edge menu.
 - Utility controls such as Settings, Stats, About, and installer actions should live in a normal right-aligned toolbar group or settings surface.

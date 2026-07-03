@@ -67,6 +67,21 @@ describe("CardView", () => {
     );
   });
 
+  it("uses the same side-by-side index geometry for full and covered card states", () => {
+    const { container } = renderCard(card(10, "hearts"));
+    const cornerRank = container.querySelector(".card__rank");
+    const cornerSuit = container.querySelector(".card__corner-suit");
+    const stackRank = container.querySelector(".card__stack-rank");
+    const stackSuit = container.querySelector(".card__stack-suit");
+
+    expect(cornerRank).toHaveAttribute("x", stackRank?.getAttribute("x"));
+    expect(cornerRank).toHaveAttribute("y", stackRank?.getAttribute("y"));
+    expect(cornerRank).toHaveAttribute("font-size", stackRank?.getAttribute("font-size"));
+    expect(cornerRank).toHaveAttribute("text-anchor", "start");
+    expect(cornerSuit).toHaveAttribute("transform", stackSuit?.getAttribute("transform"));
+    expect(cornerSuit).toHaveAttribute("data-suit-size", stackSuit?.getAttribute("data-suit-size"));
+  });
+
   it("renders a compact stack index for covered tableau cards", () => {
     const { container } = renderCard(card(10, "hearts"));
     const stackIndex = container.querySelector(".card__stack-index");
