@@ -93,6 +93,32 @@ test("keeps the resource dock out of the tableau and action buttons", async ({ p
   }
 });
 
+test("does not oscillate resource dock layout at the ultrawide threshold", async ({ page }) => {
+  await page.goto("/");
+  await loadScenario(page, "hidden-king-to-two");
+  await page.setViewportSize({ width: 2001, height: 860 });
+  await settleLayout(page);
+
+  const samples = await page.evaluate(async () => {
+    const frames: Array<{ layout: string; cardWidth: string }> = [];
+
+    for (let frame = 0; frame < 18; frame += 1) {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+
+      const surface = document.querySelector<HTMLElement>(".play-surface");
+      frames.push({
+        layout: surface?.dataset.controlLayout ?? "missing",
+        cardWidth: getComputedStyle(document.documentElement).getPropertyValue("--card-fit-width").trim()
+      });
+    }
+
+    return frames;
+  });
+
+  expect(new Set(samples.map((sample) => sample.layout))).toEqual(new Set(["bottom"]));
+  expect(new Set(samples.map((sample) => sample.cardWidth)).size).toBe(1);
+});
+
 async function loadScenario(page: Page, scenarioId: string): Promise<void> {
   await page.getByRole("button", { name: "Testing" }).click();
   await expect(page.getByRole("dialog", { name: "Testing" })).toBeVisible();

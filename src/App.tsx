@@ -1833,7 +1833,7 @@ export function resolveAutoFitLayout(
   surface: HTMLElement,
   settings: Settings,
   currentControlLayout: BoardControlLayout = "bottom",
-  tableauElement?: HTMLElement | null
+  _tableauElement?: HTMLElement | null
 ): ResolvedAutoFitLayout | null {
   if (settings.gameScaleMode !== "auto") {
     return {
@@ -1842,7 +1842,9 @@ export function resolveAutoFitLayout(
     };
   }
 
-  const bottomMetrics = calculateAutoFitMetrics(surface, settings, tableauElement, "bottom");
+  // Layout choice must be based on candidate geometry, not the currently rendered
+  // tableau height; otherwise side and bottom docks can feed back into each other.
+  const bottomMetrics = calculateAutoFitMetrics(surface, settings, undefined, "bottom");
 
   if (!bottomMetrics) {
     return null;
@@ -1850,10 +1852,14 @@ export function resolveAutoFitLayout(
 
   const nextControlLayout =
     getBoardControlLayout(surface, bottomMetrics, currentControlLayout) === "side" ? "side" : "bottom";
+  const nextMetrics =
+    nextControlLayout === "side"
+      ? (calculateAutoFitMetrics(surface, settings, undefined, "side") ?? bottomMetrics)
+      : bottomMetrics;
 
   return {
     controlLayout: nextControlLayout,
-    metrics: bottomMetrics
+    metrics: nextMetrics
   };
 }
 

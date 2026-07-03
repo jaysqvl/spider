@@ -49,7 +49,7 @@ Spider is a portfolio-quality desktop game project. Keep changes easy to review,
 - Restart follows the currently selected difficulty, matching New Game. Do not make difficulty changes apply to one primary game command but not the other.
 - Stock and completed-sequence slots should live together in a compact resource dock. Use the right-side dead space when the bottom-fit tableau and dock can fit side by side without shrinking card width; otherwise use the bottom control area. Side placement must reserve real tableau width, never overlay playable cards.
 - In constrained or narrow desktop windows, the resource dock belongs in the bottom control lane: completed-sequence summaries span horizontally, and the stock/deal control sits in the same bottom lane as the history actions instead of becoming a vertical side rail.
-- Resource dock placement must be deterministic from the current viewport and bottom-layout baseline. Do not use current dock placement or hysteresis thresholds that make the same resized window end in different layouts.
+- Resource dock placement must be deterministic from the current viewport and bottom-layout baseline. Do not use the currently rendered tableau height, current dock placement, or hysteresis thresholds that make the same resized window end in different layouts or oscillate across animation frames.
 - Completed-sequence status should summarize active suits with suit marks and completed/possible counts. Do not use generic empty slots, trophy icons, or card-back stacks for completed sequences.
 - Do not use a persistent visual footer/status strip for transient messages.
 - Stacked tableau cards must paint in card-index order so lower/front cards cover cards behind them.

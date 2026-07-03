@@ -497,6 +497,50 @@ describe("App", () => {
     surface.remove();
   });
 
+  it("does not let the rendered dock layout feed back into ultrawide auto-fit decisions", () => {
+    const surface = document.createElement("section");
+    const tableau = document.createElement("div");
+    tableau.className = "tableau";
+    tableau.style.columnGap = "12px";
+    Object.defineProperties(surface, {
+      clientWidth: { value: 2001, configurable: true },
+      clientHeight: { value: 860, configurable: true }
+    });
+    Object.defineProperties(tableau, {
+      clientWidth: { value: 1757, configurable: true },
+      clientHeight: { value: 578, configurable: true }
+    });
+    Object.defineProperty(window, "innerWidth", { value: 2001, configurable: true });
+    Object.defineProperty(window, "innerHeight", { value: 860, configurable: true });
+    surface.style.paddingLeft = "18px";
+    surface.style.paddingRight = "18px";
+    surface.style.paddingTop = "80px";
+    surface.style.paddingBottom = "113px";
+    document.body.append(surface);
+    surface.append(tableau);
+
+    const resolvedFromSideDom = resolveAutoFitLayout(
+      surface,
+      { ...DEFAULT_SETTINGS, gameScaleMode: "auto" },
+      "side",
+      tableau
+    );
+
+    Object.defineProperty(tableau, "clientHeight", { value: 667, configurable: true });
+
+    const resolvedFromBottomDom = resolveAutoFitLayout(
+      surface,
+      { ...DEFAULT_SETTINGS, gameScaleMode: "auto" },
+      "bottom",
+      tableau
+    );
+
+    expect(resolvedFromSideDom?.controlLayout).toBe("bottom");
+    expect(resolvedFromBottomDom?.controlLayout).toBe("bottom");
+    expect(resolvedFromSideDom?.metrics).toEqual(resolvedFromBottomDom?.metrics);
+    surface.remove();
+  });
+
   it("keeps global auto-fit stable when only tableau stack heights change", () => {
     const surface = document.createElement("section");
     Object.defineProperties(surface, {
