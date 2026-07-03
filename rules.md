@@ -28,6 +28,7 @@ Spider is a portfolio-quality desktop game project. Keep changes easy to review,
 - Auto-fit should maximize available width first; use card overlap to solve height pressure before shrinking global card size.
 - Auto-fit must not recompute global card scale or board-wide stack spacing from live tableau height during normal moves. Use stable viewport-based fit plus local column compression for tall stacks.
 - Auto-fit should trust measured play-surface dimensions over transient viewport values during native desktop resize/maximize events.
+- Ultrawide auto-fit must reserve readable height for a King-to-2 face-up run with hidden cards underneath before allowing cards to grow from extra horizontal space.
 - Stacked face-up cards must reveal enough of the top index to remain playable; do not use one aggressive overlap value for both face-down and face-up covered cards.
 - On large or ultrawide boards, covered face-up cards must reserve enough exposed height for the full corner rank/suit pair. Do not let enlarged card art clip the stacked index.
 - Tableau fit calculations need a rounding guard and browser-verified screenshots at tight widths so the rightmost column cannot be clipped.

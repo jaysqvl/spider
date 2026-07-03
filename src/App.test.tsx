@@ -143,10 +143,10 @@ describe("App", () => {
     const surface = document.createElement("section");
     Object.defineProperties(surface, {
       clientWidth: { value: 2200, configurable: true },
-      clientHeight: { value: 900, configurable: true }
+      clientHeight: { value: 1200, configurable: true }
     });
     Object.defineProperty(window, "innerWidth", { value: 2200, configurable: true });
-    Object.defineProperty(window, "innerHeight", { value: 900, configurable: true });
+    Object.defineProperty(window, "innerHeight", { value: 1200, configurable: true });
     surface.style.paddingLeft = "18px";
     surface.style.paddingRight = "18px";
     surface.style.paddingTop = "18px";
@@ -243,6 +243,54 @@ describe("App", () => {
     surface.remove();
   });
 
+  it("limits ultrawide card growth for a readable king-to-two run with hidden cards", () => {
+    const surface = document.createElement("section");
+    const tableau = document.createElement("div");
+    Object.defineProperties(surface, {
+      clientWidth: { value: 2200, configurable: true },
+      clientHeight: { value: 900, configurable: true }
+    });
+    Object.defineProperties(tableau, {
+      clientWidth: { value: 2200, configurable: true },
+      clientHeight: { value: 806, configurable: true }
+    });
+    vi.spyOn(tableau, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 2200,
+      bottom: 806,
+      width: 2200,
+      height: 806,
+      toJSON: () => ({})
+    });
+    Object.defineProperty(window, "innerWidth", { value: 2200, configurable: true });
+    Object.defineProperty(window, "innerHeight", { value: 900, configurable: true });
+    surface.style.paddingLeft = "18px";
+    surface.style.paddingRight = "18px";
+    document.body.append(surface);
+    surface.append(tableau);
+    document.documentElement.style.setProperty("--tableau-gap", "12px");
+
+    const metrics = applyAutoFitScale(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, undefined, tableau);
+    const column = [
+      ...Array.from({ length: 4 }, (_, index) => card((index + 1) as Rank, "spades", false)),
+      ...Array.from({ length: 12 }, (_, index) => card((13 - index) as Rank, "spades", true))
+    ];
+    const reveals = getColumnCardReveals(
+      column,
+      metrics ?? { cardWidth: null, stackVisibleRatio: 0.28, availableHeight: null }
+    );
+    const visibleHeight = (metrics?.cardWidth ?? 0) * 1.38 + sumRevealPx(reveals);
+    const faceUpReveals = reveals.slice(5).map((reveal) => reveal ?? 0);
+
+    expect(metrics?.cardWidth).toBe(145);
+    expect(visibleHeight).toBeLessThanOrEqual((metrics?.availableHeight ?? 0) + 0.5);
+    expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(47);
+    surface.remove();
+  });
+
   it("reserves a right-side resource rail when side controls are active", () => {
     const surface = document.createElement("section");
     const tableau = document.createElement("div");
@@ -269,7 +317,7 @@ describe("App", () => {
       "side"
     );
 
-    expect(bottomMetrics?.cardWidth).toBe(165);
+    expect(bottomMetrics?.cardWidth).toBe(162);
     expect(sideMetrics?.cardWidth).toBe(144);
     surface.remove();
   });
