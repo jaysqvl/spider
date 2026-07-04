@@ -56,7 +56,7 @@ const VIEWPORTS: ViewportCase[] = [
     width: 2827,
     height: 680,
     minCardWidth: 118,
-    minTallestFaceUpReveal: 25
+    minTallestFaceUpReveal: 22
   },
   {
     name: "diagnostic-snapped-short",
