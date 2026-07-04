@@ -55,17 +55,17 @@ const VIEWPORTS: ViewportCase[] = [
     name: "diagnostic-ultrawide-short",
     width: 2827,
     height: 680,
-    minCardWidth: 118,
-    minTallestFaceUpReveal: 22
+    minCardWidth: 100,
+    minTallestFaceUpReveal: 27
   },
   {
     name: "diagnostic-snapped-short",
     width: 1295,
     height: 680,
-    minCardWidth: 112,
+    minCardWidth: 90,
     expectedLayout: "bottom",
     maxTallestColumnRatio: 1,
-    minTallestFaceUpReveal: 22
+    minTallestFaceUpReveal: 25.5
   },
   { name: "tall-desktop", width: 900, height: 1180, minCardWidth: 56 },
   { name: "tight-desktop", width: 900, height: 720, minCardWidth: 56 },

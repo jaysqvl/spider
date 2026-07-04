@@ -282,7 +282,7 @@ describe("App", () => {
     );
 
     expect(metrics?.availableHeight).toBe(248);
-    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(64);
+    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(69);
     surface.remove();
   });
 
@@ -319,7 +319,7 @@ describe("App", () => {
     const metrics = applyAutoFitScale(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, undefined, tableau);
 
     expect(metrics?.availableHeight).toBe(518);
-    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(119);
+    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(108);
     surface.remove();
   });
 
@@ -392,9 +392,39 @@ describe("App", () => {
     const faceUpReveals = reveals.slice(5).map((reveal) => reveal ?? 0);
 
     expect(metrics?.availableHeight).toBe(483);
-    expect(metrics?.cardWidth).toBe(119);
+    expect(metrics?.cardWidth).toBe(101);
     expect(visibleHeight).toBeLessThanOrEqual(483.5);
-    expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(25);
+    expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(27);
+    surface.remove();
+  });
+
+  it("trades width for readable stack bands on snapped short boards", () => {
+    const surface = document.createElement("section");
+    Object.defineProperties(surface, {
+      clientWidth: { value: 1295, configurable: true },
+      clientHeight: { value: 680, configurable: true }
+    });
+    Object.defineProperty(window, "innerWidth", { value: 1295, configurable: true });
+    Object.defineProperty(window, "innerHeight", { value: 680, configurable: true });
+    surface.style.paddingLeft = "18px";
+    surface.style.paddingRight = "18px";
+    surface.style.paddingTop = "80px";
+    surface.style.paddingBottom = "160px";
+    document.body.append(surface);
+    document.documentElement.style.setProperty("--tableau-gap", "12px");
+
+    const metrics = applyAutoFitScale(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" });
+    const reveals = getColumnCardReveals(
+      hiddenKingToTwoColumn(),
+      metrics ?? { cardWidth: null, stackVisibleRatio: 0.28, availableHeight: null }
+    );
+    const visibleHeight = (metrics?.cardWidth ?? 0) * 1.38 + sumRevealPx(reveals);
+    const faceUpReveals = reveals.slice(5).map((reveal) => reveal ?? 0);
+
+    expect(metrics?.availableHeight).toBe(438);
+    expect(metrics?.cardWidth).toBe(91);
+    expect(visibleHeight).toBeLessThanOrEqual(438.5);
+    expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(25.5);
     surface.remove();
   });
 

@@ -56,6 +56,7 @@ Spider is a portfolio-quality desktop game project. Keep changes easy to review,
 - Covered tableau cards should render only their exposed top label; hidden centers and bottom corners must not paint through the front card face.
 - Covered tableau cards should use a compact exposed rank/suit label so large-card stacks stay readable without wasting excessive vertical space. Auto-fit metrics must use the same effective card width that CSS renders, not an uncapped candidate width that creates oversized stack gaps.
 - Comfortable face-up stack spacing and emergency compression floors are separate concerns. When a stack has vertical room, keep the generous reveal target; only tall local stacks should compress down toward compact rank/suit bands.
+- Short wide boards should trade some card width for readable face-up stack bands before falling back to compact overlap. Compact stack-height caps are for genuinely tiny card widths, not normal desktop layouts that still have usable vertical room.
 - Dark card faces must keep rank, suit, pip, and court-art contrast high in both light and dark app themes.
 - Dark card faces should stay clean and card-like; do not draw a visible inner inset rectangle that light cards do not show.
 - Tableau card wrappers must not add line-height or baseline space; stack reveal math assumes each wrapper is exactly the rendered card height plus its explicit overlap margin.

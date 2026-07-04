@@ -80,8 +80,9 @@ const MIN_CARD_STACK_REVEAL_PX = 10;
 const AUTO_FIT_REFERENCE_COLUMN_HEIGHT = 16;
 const FACE_DOWN_REVEAL_RATIO = 0.13;
 const FACE_UP_REVEAL_RATIO = 0.33;
-const FACE_UP_REVEAL_MIN_RATIO = 0.24;
+const FACE_UP_REVEAL_MIN_RATIO = 0.27;
 const FACE_UP_REVEAL_FLOOR_RATIO = 0.19;
+const FACE_UP_READABLE_FIT_REVEAL_RATIO = 0.26;
 const FACE_DOWN_REVEAL_MIN_PX = 7;
 const FACE_DOWN_REVEAL_TARGET_MIN_PX = 10;
 const FACE_DOWN_REVEAL_TARGET_MAX_PX = 34;
@@ -92,7 +93,7 @@ const FACE_UP_REVEAL_MAX_PX = 52;
 const FACE_UP_REVEAL_FLOOR_PX = 34;
 const FACE_UP_REVEAL_COMPACT_FLOOR_MIN_PX = 20;
 const FACE_DOWN_REVEAL_FLOOR_PX = 6;
-const COMPACT_STACK_HEIGHT_CAP_CARD_WIDTH_PX = 112;
+const COMPACT_STACK_HEIGHT_CAP_CARD_WIDTH_PX = 88;
 const COMPACT_STACK_HEIGHT_CAP_RATIO = 0.86;
 const TABLEAU_FIT_SAFETY_PX = 2;
 const MAX_CARD_WIDTH_TO_TABLEAU_HEIGHT_RATIO = 0.28;
@@ -1945,8 +1946,14 @@ function calculateAutoFitMetrics(
     ((availableWidth - columnGap * (TABLEAU_COLUMN_COUNT - 1)) / TABLEAU_COLUMN_COUNT) * userScale;
   const availableHeight = Math.floor(getAvailableTableauBlockSize(surfaceHeight, blockPadding, rowGap, tableauElement));
   const verticalFit = getMinimumRevealFitWidth(availableHeight, AUTO_FIT_REFERENCE_COLUMN_HEIGHT);
-  const heightBalancedFit = getHeightBalancedFitWidth(surfaceWidth, surfaceHeight, availableHeight);
   const visualMaxWidth = BASE_CARD_MAX_WIDTH * DEFAULT_VISUAL_SCALE_MULTIPLIER * userScale;
+  const heightBalancedFit = getHeightBalancedFitWidth(
+    surfaceWidth,
+    surfaceHeight,
+    availableHeight,
+    horizontalFit,
+    visualMaxWidth
+  );
   const fitWidth = Math.floor(Math.max(1, Math.min(horizontalFit, verticalFit, heightBalancedFit, visualMaxWidth)));
   const stackVisibleRatio = CARD_STACK_VISIBLE_RATIO;
 
@@ -2047,18 +2054,30 @@ function getMinimumRevealFitWidth(availableHeight: number, columnHeight: number)
   return remainingHeight / CARD_HEIGHT_RATIO;
 }
 
-function getHeightBalancedFitWidth(surfaceWidth: number, surfaceHeight: number, availableHeight: number): number {
+function getHeightBalancedFitWidth(
+  surfaceWidth: number,
+  surfaceHeight: number,
+  availableHeight: number,
+  horizontalFit: number,
+  visualMaxWidth: number
+): number {
   const standardFit = availableHeight * MAX_CARD_WIDTH_TO_TABLEAU_HEIGHT_RATIO;
+  const shouldReserveReadableStack =
+    surfaceHeight > 0 &&
+    (surfaceWidth / surfaceHeight >= ULTRAWIDE_HEIGHT_BALANCE_ASPECT_RATIO || availableHeight <= 540) &&
+    horizontalFit >= visualMaxWidth * 0.9;
 
-  if (surfaceHeight <= 0 || surfaceWidth / surfaceHeight < ULTRAWIDE_HEIGHT_BALANCE_ASPECT_RATIO) {
+  if (!shouldReserveReadableStack) {
     return standardFit;
   }
 
-  return Math.min(standardFit, getUltrawideReadableStackFitWidth(availableHeight) ?? standardFit);
+  const readableStackFit = getReadableStackFitWidth(availableHeight);
+
+  return Math.min(standardFit, readableStackFit ?? standardFit);
 }
 
-function getUltrawideReadableStackFitWidth(availableHeight: number): number | null {
-  const smallestReadableStackHeight = getReferenceStackCompressedHeight(1);
+function getReadableStackFitWidth(availableHeight: number): number | null {
+  const smallestReadableStackHeight = getReferenceStackReadableHeight(1);
 
   if (availableHeight < smallestReadableStackHeight) {
     return null;
@@ -2070,7 +2089,7 @@ function getUltrawideReadableStackFitWidth(availableHeight: number): number | nu
   for (let step = 0; step < 18; step += 1) {
     const midpoint = (low + high) / 2;
 
-    if (getReferenceStackCompressedHeight(midpoint) <= availableHeight) {
+    if (getReferenceStackReadableHeight(midpoint) <= availableHeight) {
       low = midpoint;
     } else {
       high = midpoint;
@@ -2080,11 +2099,11 @@ function getUltrawideReadableStackFitWidth(availableHeight: number): number | nu
   return low;
 }
 
-function getReferenceStackCompressedHeight(cardWidth: number): number {
+function getReferenceStackReadableHeight(cardWidth: number): number {
   const faceDownReveal =
-    ULTRAWIDE_REFERENCE_FACE_DOWN_CARDS * getReferenceCardRevealFloorPxForFace(false, cardWidth);
+    ULTRAWIDE_REFERENCE_FACE_DOWN_CARDS * getReferenceCardReadableRevealPxForFace(false, cardWidth);
   const faceUpCoveredCards = Math.max(0, ULTRAWIDE_REFERENCE_FACE_UP_RUN_CARDS - 1);
-  const faceUpReveal = faceUpCoveredCards * getReferenceCardRevealFloorPxForFace(true, cardWidth);
+  const faceUpReveal = faceUpCoveredCards * getReferenceCardReadableRevealPxForFace(true, cardWidth);
 
   return cardWidth * CARD_HEIGHT_RATIO + faceDownReveal + faceUpReveal;
 }
@@ -2230,10 +2249,12 @@ function getCardRevealFloorPxForFace(faceUp: boolean, cardWidth: number): number
   return clamp(cardWidth * FACE_UP_REVEAL_FLOOR_RATIO, FACE_UP_REVEAL_COMPACT_FLOOR_MIN_PX, FACE_UP_REVEAL_FLOOR_PX);
 }
 
-function getReferenceCardRevealFloorPxForFace(faceUp: boolean, cardWidth: number): number {
-  return faceUp
-    ? Math.min(cardWidth * FACE_UP_REVEAL_FLOOR_RATIO, FACE_UP_REVEAL_FLOOR_PX)
-    : FACE_DOWN_REVEAL_FLOOR_PX;
+function getReferenceCardReadableRevealPxForFace(faceUp: boolean, cardWidth: number): number {
+  if (!faceUp) {
+    return Math.max(FACE_DOWN_REVEAL_FLOOR_PX, cardWidth * FACE_DOWN_REVEAL_RATIO);
+  }
+
+  return Math.max(FACE_UP_REVEAL_MIN_PX, cardWidth * FACE_UP_READABLE_FIT_REVEAL_RATIO);
 }
 
 function getUniformFitReveals(cardCount: number, cardHeight: number, availableHeight: number): number[] {
