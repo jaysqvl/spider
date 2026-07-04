@@ -793,8 +793,23 @@ describe("App", () => {
     );
 
     expect(firstColumnReveals[4]).toBeGreaterThan(firstColumnReveals[1]);
-    expect(firstColumnReveals.slice(4).every((reveal) => reveal >= 24)).toBe(true);
+    expect(firstColumnReveals.slice(4).every((reveal) => reveal >= 46)).toBe(true);
     expect(neighborColumnReveals.slice(1).every((reveal) => reveal === neighborColumnReveals[1])).toBe(true);
+  });
+
+  it("uses comfortable face-up spacing when a stack has vertical room", () => {
+    const metrics = {
+      cardWidth: 119,
+      stackVisibleRatio: 0.28,
+      availableHeight: 700
+    };
+    const column = [card(13), card(12), card(11), card(10), card(9)];
+
+    const reveals = getColumnCardReveals(column, metrics);
+    const visibleHeight = metrics.cardWidth * 1.38 + sumRevealPx(reveals);
+
+    expect(visibleHeight).toBeLessThan(metrics.availableHeight);
+    expect(Math.min(...reveals.slice(1).map((reveal) => reveal ?? 0))).toBeGreaterThanOrEqual(46);
   });
 
   it("keeps ultrawide covered card indexes readable", () => {

@@ -78,12 +78,15 @@ const CARD_HEIGHT_RATIO = 1.38;
 const CARD_STACK_VISIBLE_RATIO = 0.28;
 const MIN_CARD_STACK_REVEAL_PX = 10;
 const AUTO_FIT_REFERENCE_COLUMN_HEIGHT = 16;
-const FACE_DOWN_REVEAL_RATIO = 0.1;
-const FACE_UP_REVEAL_RATIO = 0.28;
+const FACE_DOWN_REVEAL_RATIO = 0.13;
+const FACE_UP_REVEAL_RATIO = 0.33;
 const FACE_UP_REVEAL_MIN_RATIO = 0.24;
 const FACE_UP_REVEAL_FLOOR_RATIO = 0.19;
 const FACE_DOWN_REVEAL_MIN_PX = 7;
-const FACE_DOWN_REVEAL_MAX_PX = 24;
+const FACE_DOWN_REVEAL_TARGET_MIN_PX = 10;
+const FACE_DOWN_REVEAL_TARGET_MAX_PX = 34;
+const FACE_UP_REVEAL_TARGET_MIN_PX = 46;
+const FACE_UP_REVEAL_TARGET_MAX_PX = 70;
 const FACE_UP_REVEAL_MIN_PX = 24;
 const FACE_UP_REVEAL_MAX_PX = 52;
 const FACE_UP_REVEAL_FLOOR_PX = 34;
@@ -2205,8 +2208,8 @@ function getCardRevealTargetPx(card: Card, cardWidth: number): number {
 
 function getCardRevealTargetPxForFace(faceUp: boolean, cardWidth: number): number {
   return faceUp
-    ? clamp(cardWidth * FACE_UP_REVEAL_RATIO, FACE_UP_REVEAL_MIN_PX, FACE_UP_REVEAL_MAX_PX)
-    : clamp(cardWidth * FACE_DOWN_REVEAL_RATIO, FACE_DOWN_REVEAL_MIN_PX, FACE_DOWN_REVEAL_MAX_PX);
+    ? clamp(cardWidth * FACE_UP_REVEAL_RATIO, FACE_UP_REVEAL_TARGET_MIN_PX, FACE_UP_REVEAL_TARGET_MAX_PX)
+    : clamp(cardWidth * FACE_DOWN_REVEAL_RATIO, FACE_DOWN_REVEAL_TARGET_MIN_PX, FACE_DOWN_REVEAL_TARGET_MAX_PX);
 }
 
 function getCardRevealMinimumPx(card: Card, cardWidth: number): number {
@@ -2246,7 +2249,7 @@ function getUniformFitReveals(cardCount: number, cardHeight: number, availableHe
 }
 
 function roundRevealPx(value: number): number {
-  return Math.round(value * 10) / 10;
+  return Math.floor(value * 10) / 10;
 }
 
 function sumNumbers(values: number[]): number {
