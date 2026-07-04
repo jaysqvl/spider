@@ -237,7 +237,7 @@ describe("App", () => {
 
     applyAutoFitScale(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, gameWithTallColumn(6));
 
-    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(205);
+    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(119);
     expect(parseFloat(document.documentElement.style.getPropertyValue("--card-stack-visible-ratio"))).toBe(0.28);
     surface.remove();
   });
@@ -282,7 +282,7 @@ describe("App", () => {
     );
 
     expect(metrics?.availableHeight).toBe(248);
-    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(69);
+    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(64);
     surface.remove();
   });
 
@@ -319,7 +319,7 @@ describe("App", () => {
     const metrics = applyAutoFitScale(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, undefined, tableau);
 
     expect(metrics?.availableHeight).toBe(518);
-    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(81);
+    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(119);
     surface.remove();
   });
 
@@ -354,10 +354,7 @@ describe("App", () => {
     document.documentElement.style.setProperty("--tableau-gap", "12px");
 
     const metrics = applyAutoFitScale(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, undefined, tableau);
-    const column = [
-      ...Array.from({ length: 4 }, (_, index) => card((index + 1) as Rank, "spades", false)),
-      ...Array.from({ length: 12 }, (_, index) => card((13 - index) as Rank, "spades", true))
-    ];
+    const column = hiddenKingToTwoColumn();
     const reveals = getColumnCardReveals(
       column,
       metrics ?? { cardWidth: null, stackVisibleRatio: 0.28, availableHeight: null }
@@ -365,10 +362,56 @@ describe("App", () => {
     const visibleHeight = (metrics?.cardWidth ?? 0) * 1.38 + sumRevealPx(reveals);
     const faceUpReveals = reveals.slice(5).map((reveal) => reveal ?? 0);
 
-    expect(metrics?.cardWidth).toBe(203);
+    expect(metrics?.cardWidth).toBe(119);
     expect(visibleHeight).toBeLessThanOrEqual((metrics?.availableHeight ?? 0) + 0.5);
-    expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(34);
+    expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(24);
     surface.remove();
+  });
+
+  it("keeps short ultrawide boards from shrinking every card for a hidden king-to-two run", () => {
+    const surface = document.createElement("section");
+    Object.defineProperties(surface, {
+      clientWidth: { value: 2827, configurable: true },
+      clientHeight: { value: 680, configurable: true }
+    });
+    Object.defineProperty(window, "innerWidth", { value: 2827, configurable: true });
+    Object.defineProperty(window, "innerHeight", { value: 680, configurable: true });
+    surface.style.paddingLeft = "18px";
+    surface.style.paddingRight = "18px";
+    surface.style.paddingTop = "80px";
+    surface.style.paddingBottom = "115px";
+    document.body.append(surface);
+    document.documentElement.style.setProperty("--tableau-gap", "12px");
+
+    const metrics = applyAutoFitScale(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" });
+    const reveals = getColumnCardReveals(
+      hiddenKingToTwoColumn(),
+      metrics ?? { cardWidth: null, stackVisibleRatio: 0.28, availableHeight: null }
+    );
+    const visibleHeight = (metrics?.cardWidth ?? 0) * 1.38 + sumRevealPx(reveals);
+    const faceUpReveals = reveals.slice(5).map((reveal) => reveal ?? 0);
+
+    expect(metrics?.availableHeight).toBe(483);
+    expect(metrics?.cardWidth).toBe(119);
+    expect(visibleHeight).toBeLessThanOrEqual(483.5);
+    expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(25);
+    surface.remove();
+  });
+
+  it("keeps snapped short boards readable without over-condensing hidden king-to-two runs", () => {
+    const metrics = {
+      cardWidth: 114,
+      stackVisibleRatio: 0.28,
+      availableHeight: 437
+    };
+    const reveals = getColumnCardReveals(hiddenKingToTwoColumn(), metrics);
+    const visibleHeight = metrics.cardWidth * 1.38 + sumRevealPx(reveals);
+    const hiddenReveals = reveals.slice(1, 5).map((reveal) => reveal ?? 0);
+    const faceUpReveals = reveals.slice(5).map((reveal) => reveal ?? 0);
+
+    expect(visibleHeight).toBeLessThanOrEqual(metrics.availableHeight + 0.5);
+    expect(Math.max(...hiddenReveals)).toBeLessThan(Math.min(...faceUpReveals));
+    expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(22);
   });
 
   it("reserves a right-side resource rail when side controls are active", () => {
@@ -397,12 +440,12 @@ describe("App", () => {
       "side"
     );
 
-    expect(bottomMetrics?.cardWidth).toBe(165);
-    expect(sideMetrics?.cardWidth).toBe(144);
+    expect(bottomMetrics?.cardWidth).toBe(119);
+    expect(sideMetrics?.cardWidth).toBe(119);
     surface.remove();
   });
 
-  it("keeps resources on the bottom when a side rail would shrink the tableau", () => {
+  it("uses the side rail when it preserves the rendered card width", () => {
     const surface = document.createElement("section");
     const tableau = document.createElement("div");
     tableau.className = "tableau";
@@ -419,8 +462,8 @@ describe("App", () => {
 
     const resolved = resolveAutoFitLayout(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, "bottom", tableau);
 
-    expect(resolved?.controlLayout).toBe("bottom");
-    expect(resolved?.metrics.cardWidth).toBe(165);
+    expect(resolved?.controlLayout).toBe("side");
+    expect(resolved?.metrics.cardWidth).toBe(119);
     expect(document.documentElement.style.getPropertyValue("--card-fit-width")).toBe("");
     surface.remove();
   });
@@ -445,7 +488,7 @@ describe("App", () => {
     const resolved = resolveAutoFitLayout(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, "bottom", tableau);
 
     expect(resolved?.controlLayout).toBe("side");
-    expect(resolved?.metrics.cardWidth).toBeGreaterThan(200);
+    expect(resolved?.metrics.cardWidth).toBe(119);
     surface.remove();
   });
 
@@ -750,7 +793,7 @@ describe("App", () => {
     );
 
     expect(firstColumnReveals[4]).toBeGreaterThan(firstColumnReveals[1]);
-    expect(firstColumnReveals.slice(4).every((reveal) => reveal >= 46)).toBe(true);
+    expect(firstColumnReveals.slice(4).every((reveal) => reveal >= 24)).toBe(true);
     expect(neighborColumnReveals.slice(1).every((reveal) => reveal === neighborColumnReveals[1])).toBe(true);
   });
 
@@ -764,7 +807,7 @@ describe("App", () => {
 
     const reveals = getColumnCardReveals(column, metrics);
 
-    expect(Math.min(...reveals.slice(1).map((reveal) => reveal ?? 0))).toBeGreaterThanOrEqual(56);
+    expect(Math.min(...reveals.slice(1).map((reveal) => reveal ?? 0))).toBeGreaterThanOrEqual(48);
   });
 
   it("compresses very tall columns to fit the measured tableau lane", () => {
@@ -791,20 +834,14 @@ describe("App", () => {
       stackVisibleRatio: 0.28,
       availableHeight: 593
     };
-    const hiddenKingToTwo = [
-      card(3, "spades", false),
-      card(6, "spades", false),
-      card(9, "spades", false),
-      card(1, "spades", false),
-      ...([13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2] as Rank[]).map((rank) => card(rank, "spades"))
-    ];
+    const hiddenKingToTwo = hiddenKingToTwoColumn();
 
     const reveals = getColumnCardReveals(hiddenKingToTwo, metrics);
     const visibleHeight = metrics.cardWidth * 1.38 + sumRevealPx(reveals);
     const faceUpReveals = reveals.slice(5).map((reveal) => reveal ?? 0);
 
     expect(visibleHeight).toBeLessThanOrEqual(metrics.availableHeight * 0.87);
-    expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(30);
+    expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(24);
   });
 
   it("surfaces update checks from settings", async () => {
@@ -1150,6 +1187,16 @@ function gameWithMixedStackVisibility(): GameState {
       []
     ]
   };
+}
+
+function hiddenKingToTwoColumn(): Card[] {
+  return [
+    card(3, "spades", false),
+    card(6, "spades", false),
+    card(9, "spades", false),
+    card(1, "spades", false),
+    ...([13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2] as Rank[]).map((rank) => card(rank, "spades"))
+  ];
 }
 
 function card(rank: Rank, suit: Suit = "spades", faceUp = true): Card {

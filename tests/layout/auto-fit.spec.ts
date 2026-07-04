@@ -8,6 +8,7 @@ interface ViewportCase {
   minTableauCoverage?: number;
   expectedLayout?: "bottom" | "side";
   maxTallestColumnRatio?: number;
+  minTallestFaceUpReveal?: number;
 }
 
 interface RectSnapshot {
@@ -42,6 +43,7 @@ interface LayoutSnapshot {
   topmostCard: number;
   bottommostCard: number;
   tallestColumnHeight: number;
+  tallestColumnMinFaceUpReveal: number;
   foundationDirection: string;
 }
 
@@ -49,6 +51,22 @@ const VIEWPORTS: ViewportCase[] = [
   { name: "standard-desktop", width: 1440, height: 900, minCardWidth: 96, minTableauCoverage: 0.68 },
   { name: "ultrawide-short", width: 2048, height: 872, minCardWidth: 110, minTableauCoverage: 0.62 },
   { name: "ultrawide-very-short", width: 2560, height: 760, minCardWidth: 96, minTableauCoverage: 0.48 },
+  {
+    name: "diagnostic-ultrawide-short",
+    width: 2827,
+    height: 680,
+    minCardWidth: 118,
+    minTallestFaceUpReveal: 25
+  },
+  {
+    name: "diagnostic-snapped-short",
+    width: 1295,
+    height: 680,
+    minCardWidth: 112,
+    expectedLayout: "bottom",
+    maxTallestColumnRatio: 1,
+    minTallestFaceUpReveal: 22
+  },
   { name: "tall-desktop", width: 900, height: 1180, minCardWidth: 56 },
   { name: "tight-desktop", width: 900, height: 720, minCardWidth: 56 },
   {
@@ -164,6 +182,7 @@ function assertPlayableGeometry(snapshot: LayoutSnapshot, viewport: ViewportCase
   expect.soft(snapshot.scrollHeight, viewport.name).toBeLessThanOrEqual(viewport.height + 1);
   expect.soft(snapshot.cardWidth, viewport.name).toBeGreaterThanOrEqual(viewport.minCardWidth);
   expect.soft(snapshot.renderedCardWidth, viewport.name).toBeGreaterThanOrEqual(viewport.minCardWidth);
+  expect.soft(snapshot.renderedCardWidth, viewport.name).toBeCloseTo(snapshot.cardWidth, 0);
   expect.soft(snapshot.leftmostColumn, viewport.name).toBeGreaterThanOrEqual(snapshot.surface.left - 1);
   expect.soft(snapshot.rightmostColumn, viewport.name).toBeLessThanOrEqual(snapshot.surface.right + 1);
   expect.soft(snapshot.topmostCard, viewport.name).toBeGreaterThanOrEqual(snapshot.tableau.top - 1);
@@ -181,6 +200,12 @@ function assertPlayableGeometry(snapshot: LayoutSnapshot, viewport: ViewportCase
     expect
       .soft(snapshot.tallestColumnHeight, viewport.name)
       .toBeLessThanOrEqual(snapshot.tableau.height * viewport.maxTallestColumnRatio);
+  }
+
+  if (viewport.minTallestFaceUpReveal !== undefined) {
+    expect
+      .soft(snapshot.tallestColumnMinFaceUpReveal, viewport.name)
+      .toBeGreaterThanOrEqual(viewport.minTallestFaceUpReveal);
   }
 }
 
@@ -242,6 +267,15 @@ function readLayoutSnapshot(): LayoutSnapshot {
 
     return Math.max(...rects.map((rect) => rect.bottom)) - Math.min(...rects.map((rect) => rect.top));
   });
+  const tallestColumnIndex = columnCardHeights.indexOf(Math.max(...columnCardHeights));
+  const tallestColumnCards = Array.from(
+    columns[tallestColumnIndex]?.querySelectorAll<HTMLElement>(".tableau-card") ?? []
+  );
+  const tallestColumnFaceUpReveals = tallestColumnCards
+    .slice(1)
+    .filter((card) => card.dataset.cardFaceUp === "true")
+    .map((card) => Number.parseFloat(card.style.getPropertyValue("--card-reveal")))
+    .filter((value) => Number.isFinite(value));
   const leftmostColumn = Math.min(...columnRects.map((rect) => rect.left));
   const rightmostColumn = Math.max(...columnRects.map((rect) => rect.right));
   const topmostCard = Math.min(...cardRects.map((rect) => rect.top));
@@ -271,6 +305,8 @@ function readLayoutSnapshot(): LayoutSnapshot {
     topmostCard,
     bottommostCard,
     tallestColumnHeight: Math.max(...columnCardHeights),
+    tallestColumnMinFaceUpReveal:
+      tallestColumnFaceUpReveals.length > 0 ? Math.min(...tallestColumnFaceUpReveals) : Number.POSITIVE_INFINITY,
     foundationDirection: getComputedStyle(foundation).flexDirection
   };
 }
