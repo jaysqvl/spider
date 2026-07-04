@@ -273,8 +273,12 @@ function readLayoutSnapshot(): LayoutSnapshot {
   );
   const tallestColumnFaceUpReveals = tallestColumnCards
     .slice(1)
-    .filter((card) => card.dataset.cardFaceUp === "true")
-    .map((card) => Number.parseFloat(card.style.getPropertyValue("--card-reveal")))
+    .map((card, index) => ({
+      card,
+      exposedCard: tallestColumnCards[index]
+    }))
+    .filter(({ exposedCard }) => exposedCard?.dataset.cardFaceUp === "true")
+    .map(({ card }) => Number.parseFloat(card.style.getPropertyValue("--card-reveal")))
     .filter((value) => Number.isFinite(value));
   const leftmostColumn = Math.min(...columnRects.map((rect) => rect.left));
   const rightmostColumn = Math.max(...columnRects.map((rect) => rect.right));
