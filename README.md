@@ -70,7 +70,9 @@ Downloadable builds are published from GitHub Releases:
 
 <https://github.com/jaysqvl/spider/releases>
 
-Release tags use semantic versioning with a leading `v`, for example `v0.1.0`. The tag version must match `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`.
+Stable releases are managed by release-please from conventional commits. It maintains one release pull request with the changelog and synchronized versions in `package.json`, `package-lock.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `src-tauri/Cargo.lock`. Merging that pull request creates the `vMAJOR.MINOR.PATCH` tag and starts native packaging.
+
+Use `fix:` for a patch, `feat:` for a minor release, and a conventional commit with `!` or a `BREAKING CHANGE:` footer for a major release. Release notes retain features, fixes, performance work, refactors, tests, documentation, CI, build, and maintenance commits with links to their hashes.
 
 Updater-capable releases require `TAURI_SIGNING_PRIVATE_KEY` in GitHub Actions secrets. Without it, the workflow fails instead of publishing an installer that cannot update. The public updater key is committed in `src-tauri/tauri.conf.json`; the matching private key must stay secret.
 
@@ -94,17 +96,19 @@ gh secret set TAURI_SIGNING_PRIVATE_KEY < /home/code/.tauri/spider.key
 
 If this repository or its releases are private, set `TAURI_UPDATER_ENDPOINT` to a public HTTPS URL that serves Tauri's `latest.json`; unauthenticated installed apps cannot poll private GitHub Release assets.
 
-`.github/workflows/release.yml` builds:
+`.github/workflows/release-please.yml` opens or updates the release pull request on pushes to `main`. When that pull request is merged, release-please creates a draft GitHub Release and calls `.github/workflows/release.yml`, which builds:
 
 - Windows x64 NSIS artifacts on `windows-latest`.
 - macOS Apple Silicon artifacts on `macos-14`.
 - macOS Intel artifacts on `macos-13`.
 - Signed updater artifacts and `latest.json`.
-- A published GitHub Release on semver tags or manual dispatch.
+- A GitHub Release that is published only after every installer succeeds.
+
+Tag pushes and manual dispatch remain available as a recovery path, but merging the release-please pull request is the normal stable release process.
 
 Windows and macOS code-signing certificates are optional for early test builds, but Tauri updater signing is required for releases.
 
-`.github/workflows/dev-release.yml` publishes a fast `dev-latest` prerelease on pushes to `main` and manual dispatches. It builds Apple Silicon macOS and Windows x64 installers, rewrites the CI workspace to a prerelease of the current target version such as `0.2.0-dev.123.1`, and points `Spider Dev` at `https://github.com/jaysqvl/spider/releases/download/dev-latest/latest.json` for automatic dev-channel updates. It intentionally skips the slower macOS Intel runner so local testing artifacts appear quickly.
+`.github/workflows/dev-release.yml` publishes a fast `dev-latest` prerelease on ordinary pushes to `main` and manual dispatches. It skips stable release commits, builds Apple Silicon macOS and Windows x64 installers, rewrites the CI workspace to a prerelease of the current target version such as `0.2.0-dev.123.1`, and points `Spider Dev` at `https://github.com/jaysqvl/spider/releases/download/dev-latest/latest.json` for automatic dev-channel updates. It intentionally skips the slower macOS Intel runner so local testing artifacts appear quickly.
 
 Optional release secrets:
 

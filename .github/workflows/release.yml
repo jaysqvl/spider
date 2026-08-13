@@ -1,6 +1,17 @@
 name: Release
 
 on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Existing semver tag created by release-please.
+        required: true
+        type: string
+      release_draft:
+        description: Publish an existing draft after every installer succeeds.
+        required: false
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       version:
@@ -25,6 +36,8 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       version: ${{ steps.version.outputs.version }}
       prerelease: ${{ steps.version.outputs.prerelease }}
+      release_draft: ${{ steps.version.outputs.release_draft }}
+      release_id: ${{ steps.version.outputs.release_id }}
       body: ${{ steps.release_notes.outputs.body }}
 
     steps:
@@ -45,9 +58,11 @@ jobs:
         id: version
         shell: bash
         env:
-          REQUESTED_VERSION: ${{ github.event.inputs.version }}
+          REQUESTED_VERSION: ${{ inputs.tag || github.event.inputs.version }}
+          RELEASE_DRAFT: ${{ inputs.release_draft || false }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "$REQUESTED_VERSION" ]]; then
+          if [[ -n "$REQUESTED_VERSION" ]]; then
             tag="$REQUESTED_VERSION"
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             tag="v$(node -p "require('./package.json').version")"
@@ -61,17 +76,28 @@ jobs:
           fi
 
           version="${tag#v}"
+          release_manifest_version="$(node -p "require('./.release-please-manifest.json')['.']")"
           package_version="$(node -p "require('./package.json').version")"
+          package_lock_version="$(node -p "require('./package-lock.json').version")"
+          package_lock_root_version="$(node -p "require('./package-lock.json').packages[''].version")"
           tauri_version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
           cargo_version="$(node -e "const cargo = require('fs').readFileSync('src-tauri/Cargo.toml', 'utf8'); console.log(cargo.match(/^version = \"([^\"]+)\"/m)?.[1] ?? '')")"
+          cargo_lock_version="$(node -e "const lock = require('fs').readFileSync('src-tauri/Cargo.lock', 'utf8'); console.log(lock.match(/\[\[package\]\]\s+name = \"spider\"\s+version = \"([^\"]+)\"/)?.[1] ?? '')")"
 
-          if [[ "$package_version" != "$version" || "$tauri_version" != "$version" || "$cargo_version" != "$version" ]]; then
-            echo "::error::Version mismatch. tag=$tag package.json=$package_version tauri.conf.json=$tauri_version Cargo.toml=$cargo_version"
+          if [[ "$release_manifest_version" != "$version" || "$package_version" != "$version" || "$package_lock_version" != "$version" || "$package_lock_root_version" != "$version" || "$tauri_version" != "$version" || "$cargo_version" != "$version" || "$cargo_lock_version" != "$version" ]]; then
+            echo "::error::Version mismatch. tag=$tag release-manifest=$release_manifest_version package.json=$package_version package-lock.json=$package_lock_version package-lock-root=$package_lock_root_version tauri.conf.json=$tauri_version Cargo.toml=$cargo_version Cargo.lock=$cargo_lock_version"
             exit 1
           fi
 
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "release_draft=$RELEASE_DRAFT" >> "$GITHUB_OUTPUT"
+          if [[ "$RELEASE_DRAFT" == "true" ]]; then
+            release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" --jq '.id')"
+            echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
+          else
+            echo "release_id=" >> "$GITHUB_OUTPUT"
+          fi
           if [[ "$version" == *-* ]]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
@@ -98,6 +124,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -174,6 +202,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -263,12 +293,27 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          releaseId: ${{ needs.validate.outputs.release_id }}
           tagName: ${{ needs.validate.outputs.tag }}
           releaseName: Spider ${{ needs.validate.outputs.tag }}
           releaseBody: ${{ needs.validate.outputs.body }}
-          releaseDraft: false
+          releaseDraft: ${{ needs.validate.outputs.release_draft }}
           prerelease: ${{ needs.validate.outputs.prerelease }}
           args: ${{ matrix.args }}
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
           assetNamePattern: ${{ matrix.asset_name_pattern }}
+
+  publish:
+    name: Publish completed release
+    needs: [validate, release]
+    if: needs.validate.outputs.release_draft == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Publish draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+        run: gh release edit "$RELEASE_TAG" --draft=false --latest

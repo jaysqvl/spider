@@ -100,8 +100,11 @@ Spider is a portfolio-quality desktop game project. Keep changes easy to review,
 - Update documentation when behavior, setup, release, or architecture changes.
 - Use semantic versioning for shipped versions.
 - Keep `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` versions in sync.
-- Publish releases from annotated tags named `vMAJOR.MINOR.PATCH`.
+- Release Please owns stable version bumps across npm, Tauri, and Rust manifests and lockfiles. Do not hand-edit only one version pin.
+- Merge the release-please pull request to cut a stable release; ordinary feature merges should only update that pending release pull request.
+- Publish releases from tags named `vMAJOR.MINOR.PATCH`.
 - Do not claim a release exists until GitHub Actions has produced downloadable installers.
+- Keep release-please releases in draft state until all platform installers, updater signatures, and `latest.json` have been built successfully.
 - Release workflows must produce installers, signed updater artifacts, and `latest.json`; source-code archives alone do not count.
 - Release notes must include included commit subjects and short hashes.
 - Public installer asset names should use `macos-apple-silicon-arm64`, `macos-intel-x64`, and `windows-x64` style labels.

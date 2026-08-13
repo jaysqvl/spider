@@ -6,6 +6,9 @@ const fullShaActionRef = /^[^@\s]+@[a-f0-9]{40}$/i;
 const ciWorkflow = new URL("ci.yml", workflowDir);
 const releaseWorkflow = new URL("release.yml", workflowDir);
 const devReleaseWorkflow = new URL("dev-release.yml", workflowDir);
+const releasePleaseWorkflow = new URL("release-please.yml", workflowDir);
+const releasePleaseConfig = new URL("../../release-please-config.json", workflowDir);
+const releasePleaseManifest = new URL("../../.release-please-manifest.json", workflowDir);
 
 const files = (await readdir(workflowDir))
   .filter((file) => file.endsWith(".yml") || file.endsWith(".yaml"))
@@ -45,6 +48,10 @@ if (failures.length > 0) {
 const releaseContent = await readFile(releaseWorkflow, "utf8");
 const releaseAssetExpectations = [
   {
+    label: "release-please reusable workflow entrypoint",
+    pattern: "workflow_call:"
+  },
+  {
     label: "Windows x64",
     pattern: 'asset_name_pattern: "Spider_[version]_windows-x64_[bundle][ext]"'
   },
@@ -67,6 +74,18 @@ const releaseAssetExpectations = [
   {
     label: "stable release notes body",
     pattern: "releaseBody: ${{ needs.validate.outputs.body }}"
+  },
+  {
+    label: "release-please release identifier handoff",
+    pattern: "releaseId: ${{ needs.validate.outputs.release_id }}"
+  },
+  {
+    label: "draft release publication gate",
+    pattern: "needs: [validate, release]"
+  },
+  {
+    label: "complete release publication",
+    pattern: 'gh release edit "$RELEASE_TAG" --draft=false --latest'
   }
 ];
 const releaseAssetFailures = releaseAssetExpectations
@@ -145,6 +164,10 @@ const devReleaseExpectations = [
   {
     label: "dev browser layout tests",
     pattern: "npm run test:layout"
+  },
+  {
+    label: "stable release dev-channel skip",
+    pattern: "!contains(github.event.head_commit.message, 'chore(main): release ')"
   }
 ];
 const devReleaseFailures = devReleaseExpectations
@@ -183,3 +206,63 @@ if (releaseQualityFailures.length > 0) {
 
 console.log("Verified browser layout CI gates.");
 console.log("Verified dev release channel configuration.");
+
+const releasePleaseWorkflowContent = await readFile(releasePleaseWorkflow, "utf8");
+const releasePleaseWorkflowExpectations = [
+  {
+    label: "pinned release-please action",
+    pattern: "googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7"
+  },
+  {
+    label: "release-created package gate",
+    pattern: "if: needs.release-please.outputs.release_created == 'true'"
+  },
+  {
+    label: "stable packaging workflow handoff",
+    pattern: "uses: ./.github/workflows/release.yml"
+  },
+  {
+    label: "draft packaging mode",
+    pattern: "release_draft: true"
+  }
+];
+const releasePleaseWorkflowFailures = releasePleaseWorkflowExpectations
+  .filter(({ pattern }) => !releasePleaseWorkflowContent.includes(pattern))
+  .map(({ label, pattern }) => `${label} expectation is missing: ${pattern}`);
+
+const releaseConfig = JSON.parse(await readFile(releasePleaseConfig, "utf8"));
+const releaseManifest = JSON.parse(await readFile(releasePleaseManifest, "utf8"));
+const rootRelease = releaseConfig.packages?.["."];
+const extraFiles = rootRelease?.["extra-files"] ?? [];
+const changelogTypes = new Set((releaseConfig["changelog-sections"] ?? []).map(({ type }) => type));
+const expectedChangelogTypes = ["feat", "fix", "perf", "refactor", "test", "docs", "ci", "build", "chore"];
+const expectedVersionTargets = [
+  ["src-tauri/tauri.conf.json", "$.version"],
+  ["src-tauri/Cargo.toml", "$.package.version"],
+  ["src-tauri/Cargo.lock", "$.package[?(@.name.value == 'spider')].version"]
+];
+const releaseConfigFailures = [
+  ...releasePleaseWorkflowFailures,
+  ...(releaseConfig["release-type"] === "node" ? [] : ["root release type must be node"]),
+  ...(releaseConfig.draft === true ? [] : ["release-please must create a draft release"]),
+  ...(releaseConfig["force-tag-creation"] === true ? [] : ["release-please must create the semver tag before packaging"]),
+  ...(releaseConfig["include-v-in-tag"] === true ? [] : ["release tags must keep the leading v"]),
+  ...(releaseConfig["pull-request-title-pattern"] === "chore(main): release ${version}"
+    ? []
+    : ["release pull requests must use a conventional commit title"]),
+  ...(releaseManifest["."] ? [] : ["release-please manifest must track the root package"]),
+  ...expectedChangelogTypes
+    .filter((type) => !changelogTypes.has(type))
+    .map((type) => `release changelog section is missing: ${type}`),
+  ...expectedVersionTargets
+    .filter(([path, jsonpath]) => !extraFiles.some((file) => file.path === path && file.jsonpath === jsonpath))
+    .map(([path, jsonpath]) => `release-please version target is missing: ${path} ${jsonpath}`)
+];
+
+if (releaseConfigFailures.length > 0) {
+  console.error("Release Please must own every Spider version pin and package only completed releases:");
+  releaseConfigFailures.forEach((failure) => console.error(`- ${failure}`));
+  process.exit(1);
+}
+
+console.log("Verified release-please version pins and installer handoff.");
