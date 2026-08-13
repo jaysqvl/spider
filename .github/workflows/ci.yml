@@ -24,11 +24,11 @@ jobs:
           node-version: lts/*
           cache: npm
 
-      - name: Verify workflow action pins
-        run: npm run verify:workflows
-
       - name: Install dependencies
         run: npm ci
+
+      - name: Verify workflow action pins
+        run: npm run verify:workflows
 
       - name: Typecheck
         run: npm run typecheck

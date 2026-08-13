@@ -17,6 +17,7 @@ const files = (await readdir(workflowDir))
 
 const workflowSyntaxFailures = [];
 const actionPinFailures = [];
+const workflowOrderFailures = [];
 
 for (const file of files) {
   const content = await readFile(new URL(file, workflowDir), "utf8");
@@ -26,6 +27,22 @@ for (const file of files) {
   document.errors.forEach((error) => {
     workflowSyntaxFailures.push(`${join(".github/workflows", file)}: ${error.message}`);
   });
+
+  if (document.errors.length === 0) {
+    const jobs = document.toJS()?.jobs ?? {};
+
+    Object.entries(jobs).forEach(([jobName, job]) => {
+      const steps = Array.isArray(job?.steps) ? job.steps : [];
+      const installIndex = steps.findIndex(({ run }) => run === "npm ci");
+      const verifyIndex = steps.findIndex(({ run }) => run === "npm run verify:workflows");
+
+      if (verifyIndex >= 0 && (installIndex < 0 || installIndex > verifyIndex)) {
+        workflowOrderFailures.push(
+          `${join(".github/workflows", file)} job ${jobName} must run npm ci before npm run verify:workflows`
+        );
+      }
+    });
+  }
 
   lines.forEach((line, index) => {
     const match = line.match(/^\s*uses:\s*([^#\s]+)(?:\s+#.*)?$/);
@@ -49,6 +66,12 @@ for (const file of files) {
 if (workflowSyntaxFailures.length > 0) {
   console.error("GitHub Actions workflows must contain valid YAML:");
   workflowSyntaxFailures.forEach((failure) => console.error(`- ${failure}`));
+  process.exit(1);
+}
+
+if (workflowOrderFailures.length > 0) {
+  console.error("Workflow verification dependencies must be installed first:");
+  workflowOrderFailures.forEach((failure) => console.error(`- ${failure}`));
   process.exit(1);
 }
 
