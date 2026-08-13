@@ -167,7 +167,7 @@ const devReleaseExpectations = [
   },
   {
     label: "stable release dev-channel skip",
-    pattern: "!contains(github.event.head_commit.message, 'chore(main): release ')"
+    pattern: "contains(github.event.head_commit.message, 'chore(main): release ') == false"
   }
 ];
 const devReleaseFailures = devReleaseExpectations
