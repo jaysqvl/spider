@@ -106,6 +106,7 @@ Spider is a portfolio-quality desktop game project. Keep changes easy to review,
 - Publish releases from tags named `vMAJOR.MINOR.PATCH`.
 - Do not claim a release exists until GitHub Actions has produced downloadable installers.
 - Keep release-please releases in draft state until all platform installers, updater signatures, and `latest.json` have been built successfully.
+- Resolve and publish unpublished release-please drafts by authenticated numeric release ID; GitHub's tag-based release commands can return `404` for a draft that exists.
 - Quote GitHub Actions expressions that contain YAML-significant text such as `: `, keep every workflow covered by the repository YAML parser, and install dependencies before invoking repository-backed workflow checks.
 - Release workflows must produce installers, signed updater artifacts, and `latest.json`; source-code archives alone do not count.
 - Release notes must include included commit subjects and short hashes.

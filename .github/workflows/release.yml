@@ -93,15 +93,22 @@ jobs:
             exit 1
           fi
 
+          draft_release_id="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" --jq ".[] | select(.tag_name == \"${tag}\" and .draft == true) | .id")"
+          if [[ -n "$draft_release_id" ]]; then
+            release_id="$draft_release_id"
+            release_draft=true
+          elif [[ "$RELEASE_DRAFT" == "true" ]]; then
+            echo "::error::release-please reported a draft for $tag, but no matching draft release was found."
+            exit 1
+          else
+            release_id=""
+            release_draft=false
+          fi
+
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "release_draft=$RELEASE_DRAFT" >> "$GITHUB_OUTPUT"
-          if [[ "$RELEASE_DRAFT" == "true" ]]; then
-            release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" --jq '.id')"
-            echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
-          else
-            echo "release_id=" >> "$GITHUB_OUTPUT"
-          fi
+          echo "release_draft=$release_draft" >> "$GITHUB_OUTPUT"
+          echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
           if [[ "$version" == *-* ]]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
@@ -319,5 +326,8 @@ jobs:
       - name: Publish draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
-        run: gh release edit "$RELEASE_TAG" --draft=false --latest
+          RELEASE_ID: ${{ needs.validate.outputs.release_id }}
+        run: |
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" \
+            -F draft=false \
+            -f make_latest=true > /dev/null

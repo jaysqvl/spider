@@ -116,12 +116,16 @@ const releaseAssetExpectations = [
     pattern: "releaseId: ${{ needs.validate.outputs.release_id }}"
   },
   {
+    label: "authenticated draft release lookup",
+    pattern: 'gh api --paginate "repos/${GITHUB_REPOSITORY}/releases"'
+  },
+  {
     label: "draft release publication gate",
     pattern: "needs: [validate, release]"
   },
   {
     label: "complete release publication",
-    pattern: 'gh release edit "$RELEASE_TAG" --draft=false --latest'
+    pattern: 'gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}"'
   }
 ];
 const releaseAssetFailures = releaseAssetExpectations
@@ -130,6 +134,10 @@ const releaseAssetFailures = releaseAssetExpectations
 
 if (/assetNamePattern:\s*["']Spider_\[version\]_\[platform\]_\[arch\]/.test(releaseContent)) {
   releaseAssetFailures.push("release workflow must not use raw [platform]_[arch] names for public assets");
+}
+
+if (releaseContent.includes('releases/tags/${tag}')) {
+  releaseAssetFailures.push("release workflow must enumerate authenticated releases when resolving an unpublished draft");
 }
 
 if (releaseAssetFailures.length > 0) {
