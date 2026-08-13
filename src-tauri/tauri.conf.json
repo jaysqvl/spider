@@ -22,12 +22,18 @@
       }
     ],
     "security": {
-      "capabilities": ["default"]
+      "capabilities": [
+        "default"
+      ]
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "dmg", "app"],
+    "targets": [
+      "nsis",
+      "dmg",
+      "app"
+    ],
     "category": "CardGame",
     "copyright": "Copyright (c) 2026 Jay Esquivel Jr",
     "licenseFile": "../LICENSE",
