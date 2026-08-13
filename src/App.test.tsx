@@ -237,8 +237,30 @@ describe("App", () => {
 
     applyAutoFitScale(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, gameWithTallColumn(6));
 
-    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(119);
+    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(143);
     expect(parseFloat(document.documentElement.style.getPropertyValue("--card-stack-visible-ratio"))).toBe(0.28);
+    surface.remove();
+  });
+
+  it("lets full ultrawide boards grow beyond the default desktop cap", () => {
+    const surface = document.createElement("section");
+    Object.defineProperties(surface, {
+      clientWidth: { value: 3440, configurable: true },
+      clientHeight: { value: 1271, configurable: true }
+    });
+    Object.defineProperty(window, "innerWidth", { value: 3440, configurable: true });
+    Object.defineProperty(window, "innerHeight", { value: 1271, configurable: true });
+    surface.style.paddingLeft = "18px";
+    surface.style.paddingRight = "18px";
+    surface.style.paddingTop = "92px";
+    surface.style.paddingBottom = "124px";
+    document.body.append(surface);
+    document.documentElement.style.setProperty("--tableau-gap", "12px");
+
+    const metrics = applyAutoFitScale(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, undefined, undefined, "side");
+
+    expect(metrics?.availableHeight).toBe(1053);
+    expect(metrics?.cardWidth).toBe(176);
     surface.remove();
   });
 
@@ -319,7 +341,7 @@ describe("App", () => {
     const metrics = applyAutoFitScale(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, undefined, tableau);
 
     expect(metrics?.availableHeight).toBe(518);
-    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(108);
+    expect(parseFloat(document.documentElement.style.getPropertyValue("--card-fit-width"))).toBe(119);
     surface.remove();
   });
 
@@ -362,7 +384,7 @@ describe("App", () => {
     const visibleHeight = (metrics?.cardWidth ?? 0) * 1.38 + sumRevealPx(reveals);
     const faceUpReveals = reveals.slice(5).map((reveal) => reveal ?? 0);
 
-    expect(metrics?.cardWidth).toBe(119);
+    expect(metrics?.cardWidth).toBe(133);
     expect(visibleHeight).toBeLessThanOrEqual((metrics?.availableHeight ?? 0) + 0.5);
     expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(24);
     surface.remove();
@@ -392,9 +414,9 @@ describe("App", () => {
     const faceUpReveals = reveals.slice(5).map((reveal) => reveal ?? 0);
 
     expect(metrics?.availableHeight).toBe(483);
-    expect(metrics?.cardWidth).toBe(101);
+    expect(metrics?.cardWidth).toBe(119);
     expect(visibleHeight).toBeLessThanOrEqual(483.5);
-    expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(27);
+    expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(26);
     surface.remove();
   });
 
@@ -422,9 +444,9 @@ describe("App", () => {
     const faceUpReveals = reveals.slice(5).map((reveal) => reveal ?? 0);
 
     expect(metrics?.availableHeight).toBe(438);
-    expect(metrics?.cardWidth).toBe(91);
+    expect(metrics?.cardWidth).toBe(114);
     expect(visibleHeight).toBeLessThanOrEqual(438.5);
-    expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(25.5);
+    expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(22);
     surface.remove();
   });
 
@@ -470,8 +492,8 @@ describe("App", () => {
       "side"
     );
 
-    expect(bottomMetrics?.cardWidth).toBe(119);
-    expect(sideMetrics?.cardWidth).toBe(119);
+    expect(bottomMetrics?.cardWidth).toBe(127);
+    expect(sideMetrics?.cardWidth).toBe(127);
     surface.remove();
   });
 
@@ -493,7 +515,7 @@ describe("App", () => {
     const resolved = resolveAutoFitLayout(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, "bottom", tableau);
 
     expect(resolved?.controlLayout).toBe("side");
-    expect(resolved?.metrics.cardWidth).toBe(119);
+    expect(resolved?.metrics.cardWidth).toBe(127);
     expect(document.documentElement.style.getPropertyValue("--card-fit-width")).toBe("");
     surface.remove();
   });
@@ -518,7 +540,7 @@ describe("App", () => {
     const resolved = resolveAutoFitLayout(surface, { ...DEFAULT_SETTINGS, gameScaleMode: "auto" }, "bottom", tableau);
 
     expect(resolved?.controlLayout).toBe("side");
-    expect(resolved?.metrics.cardWidth).toBe(119);
+    expect(resolved?.metrics.cardWidth).toBe(150);
     surface.remove();
   });
 

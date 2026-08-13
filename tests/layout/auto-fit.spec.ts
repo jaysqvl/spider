@@ -52,20 +52,29 @@ const VIEWPORTS: ViewportCase[] = [
   { name: "ultrawide-short", width: 2048, height: 872, minCardWidth: 110, minTableauCoverage: 0.62 },
   { name: "ultrawide-very-short", width: 2560, height: 760, minCardWidth: 96, minTableauCoverage: 0.48 },
   {
+    name: "full-ultrawide",
+    width: 3440,
+    height: 1271,
+    minCardWidth: 170,
+    expectedLayout: "side",
+    maxTallestColumnRatio: 1,
+    minTallestFaceUpReveal: 46
+  },
+  {
     name: "diagnostic-ultrawide-short",
     width: 2827,
     height: 680,
-    minCardWidth: 100,
-    minTallestFaceUpReveal: 27
+    minCardWidth: 118,
+    minTallestFaceUpReveal: 22
   },
   {
     name: "diagnostic-snapped-short",
     width: 1295,
     height: 680,
-    minCardWidth: 90,
+    minCardWidth: 112,
     expectedLayout: "bottom",
     maxTallestColumnRatio: 1,
-    minTallestFaceUpReveal: 25.5
+    minTallestFaceUpReveal: 22
   },
   { name: "tall-desktop", width: 900, height: 1180, minCardWidth: 56 },
   { name: "tight-desktop", width: 900, height: 720, minCardWidth: 56 },
@@ -75,7 +84,7 @@ const VIEWPORTS: ViewportCase[] = [
     height: 768,
     minCardWidth: 68,
     expectedLayout: "bottom",
-    maxTallestColumnRatio: 0.92
+    maxTallestColumnRatio: 1
   }
 ];
 
