@@ -100,6 +100,10 @@ const releaseAssetExpectations = [
     pattern: 'asset_name_pattern: "Spider_[version]_macos-intel-x64_[bundle][ext]"'
   },
   {
+    label: "supported macOS Intel runner",
+    pattern: "os: macos-15-intel"
+  },
+  {
     label: "matrix asset pattern input",
     pattern: "assetNamePattern: ${{ matrix.asset_name_pattern }}"
   },
@@ -134,6 +138,10 @@ const releaseAssetFailures = releaseAssetExpectations
 
 if (/assetNamePattern:\s*["']Spider_\[version\]_\[platform\]_\[arch\]/.test(releaseContent)) {
   releaseAssetFailures.push("release workflow must not use raw [platform]_[arch] names for public assets");
+}
+
+if (releaseContent.includes("os: macos-13")) {
+  releaseAssetFailures.push("stable release workflow must not use the retired macos-13 runner label");
 }
 
 if (releaseContent.includes('releases/tags/${tag}')) {

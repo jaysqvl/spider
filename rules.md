@@ -111,3 +111,5 @@ Spider is a portfolio-quality desktop game project. Keep changes easy to review,
 - Release workflows must produce installers, signed updater artifacts, and `latest.json`; source-code archives alone do not count.
 - Release notes must include included commit subjects and short hashes.
 - Public installer asset names should use `macos-apple-silicon-arm64`, `macos-intel-x64`, and `windows-x64` style labels.
+- Build Intel artifacts on GitHub's supported `macos-15-intel` runner; retired runner labels must be rejected by workflow verification.
+- Keep actionlint exceptions path-scoped and exact when its built-in runner catalog trails a documented GitHub-hosted label.

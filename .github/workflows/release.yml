@@ -205,7 +205,7 @@ jobs:
             args: "--target aarch64-apple-darwin"
             asset_name_pattern: "Spider_[version]_macos-apple-silicon-arm64_[bundle][ext]"
           - name: macos-intel
-            os: macos-13
+            os: macos-15-intel
             rust_targets: x86_64-apple-darwin
             args: "--target x86_64-apple-darwin"
             asset_name_pattern: "Spider_[version]_macos-intel-x64_[bundle][ext]"
