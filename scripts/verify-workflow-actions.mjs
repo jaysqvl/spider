@@ -1,5 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { parseDocument } from "yaml";
 
 const workflowDir = new URL("../.github/workflows/", import.meta.url);
 const fullShaActionRef = /^[^@\s]+@[a-f0-9]{40}$/i;
@@ -14,11 +15,17 @@ const files = (await readdir(workflowDir))
   .filter((file) => file.endsWith(".yml") || file.endsWith(".yaml"))
   .sort();
 
-const failures = [];
+const workflowSyntaxFailures = [];
+const actionPinFailures = [];
 
 for (const file of files) {
   const content = await readFile(new URL(file, workflowDir), "utf8");
   const lines = content.split(/\r?\n/);
+  const document = parseDocument(content, { prettyErrors: true, uniqueKeys: true });
+
+  document.errors.forEach((error) => {
+    workflowSyntaxFailures.push(`${join(".github/workflows", file)}: ${error.message}`);
+  });
 
   lines.forEach((line, index) => {
     const match = line.match(/^\s*uses:\s*([^#\s]+)(?:\s+#.*)?$/);
@@ -34,14 +41,20 @@ for (const file of files) {
     }
 
     if (!fullShaActionRef.test(ref)) {
-      failures.push(`${join(".github/workflows", file)}:${index + 1} uses ${ref}`);
+      actionPinFailures.push(`${join(".github/workflows", file)}:${index + 1} uses ${ref}`);
     }
   });
 }
 
-if (failures.length > 0) {
+if (workflowSyntaxFailures.length > 0) {
+  console.error("GitHub Actions workflows must contain valid YAML:");
+  workflowSyntaxFailures.forEach((failure) => console.error(`- ${failure}`));
+  process.exit(1);
+}
+
+if (actionPinFailures.length > 0) {
   console.error("Workflow actions must be pinned to full 40-character commit SHAs:");
-  failures.forEach((failure) => console.error(`- ${failure}`));
+  actionPinFailures.forEach((failure) => console.error(`- ${failure}`));
   process.exit(1);
 }
 
@@ -102,7 +115,7 @@ if (releaseAssetFailures.length > 0) {
   process.exit(1);
 }
 
-console.log(`Verified pinned workflow actions in ${files.length} workflow file(s).`);
+console.log(`Verified YAML syntax and pinned actions in ${files.length} workflow file(s).`);
 console.log("Verified user-facing release asset names.");
 
 const ciContent = await readFile(ciWorkflow, "utf8");
