@@ -466,6 +466,22 @@ describe("App", () => {
     expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(22);
   });
 
+  it("compresses hidden cards before sacrificing face-up labels near the stack floor", () => {
+    const metrics = {
+      cardWidth: 118,
+      stackVisibleRatio: 0.28,
+      availableHeight: 431
+    };
+    const reveals = getColumnCardReveals(hiddenKingToTwoColumn(), metrics);
+    const visibleHeight = metrics.cardWidth * 1.38 + sumRevealPx(reveals);
+    const hiddenReveals = reveals.slice(1, 5).map((reveal) => reveal ?? 0);
+    const faceUpReveals = reveals.slice(5).map((reveal) => reveal ?? 0);
+
+    expect(visibleHeight).toBeLessThanOrEqual(metrics.availableHeight + 0.5);
+    expect(Math.max(...hiddenReveals)).toBeLessThan(Math.min(...faceUpReveals));
+    expect(Math.min(...faceUpReveals)).toBeGreaterThanOrEqual(22);
+  });
+
   it("reserves a right-side resource rail when side controls are active", () => {
     const surface = document.createElement("section");
     const tableau = document.createElement("div");

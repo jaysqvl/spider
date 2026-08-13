@@ -2134,18 +2134,19 @@ export function getColumnCardReveals(column: Card[], metrics: AutoFitMetrics): A
     return reveals;
   }
 
+  const priorityFloorFit = getPriorityFloorFitReveals(
+    column,
+    cardHeight,
+    availableColumnHeight,
+    revealFloors
+  );
   const compressionMinimums =
     minimumHeight <= availableColumnHeight
       ? revealMinimums
       : floorHeight <= availableColumnHeight
         ? revealFloors
-        : getUniformFitReveals(column.length, cardHeight, availableColumnHeight);
-  const compressionMinimumHeight =
-    compressionMinimums === revealMinimums
-      ? minimumHeight
-      : compressionMinimums === revealFloors
-        ? floorHeight
-        : cardHeight + sumNumbers(compressionMinimums);
+        : priorityFloorFit ?? getUniformFitReveals(column.length, cardHeight, availableColumnHeight);
+  const compressionMinimumHeight = cardHeight + sumNumbers(compressionMinimums);
   const compressionRatio =
     targetHeight === compressionMinimumHeight
       ? 0
@@ -2218,6 +2219,46 @@ function getCardRevealFloorPxForFace(faceUp: boolean, cardWidth: number): number
   }
 
   return clamp(cardWidth * FACE_UP_REVEAL_FLOOR_RATIO, FACE_UP_REVEAL_COMPACT_FLOOR_MIN_PX, FACE_UP_REVEAL_FLOOR_PX);
+}
+
+function getPriorityFloorFitReveals(
+  column: Card[],
+  cardHeight: number,
+  availableHeight: number,
+  revealFloors: number[]
+): number[] | null {
+  const deficit = cardHeight + sumNumbers(revealFloors) - availableHeight;
+
+  if (deficit <= 0) {
+    return revealFloors;
+  }
+
+  const faceDownIndexes = column
+    .slice(0, -1)
+    .map((card, index) => (card.faceUp ? -1 : index))
+    .filter((index) => index >= 0);
+  const reducibleFaceDownHeight = faceDownIndexes.reduce(
+    (total, index) => total + Math.max(0, revealFloors[index] - 1),
+    0
+  );
+
+  if (faceDownIndexes.length === 0 || deficit > reducibleFaceDownHeight) {
+    return null;
+  }
+
+  const fittedReveals = [...revealFloors];
+  let remainingDeficit = deficit;
+
+  for (let position = 0; position < faceDownIndexes.length; position += 1) {
+    const index = faceDownIndexes[position];
+    const remainingCards = faceDownIndexes.length - position;
+    const reduction = Math.min(fittedReveals[index] - 1, remainingDeficit / remainingCards);
+
+    fittedReveals[index] -= reduction;
+    remainingDeficit -= reduction;
+  }
+
+  return remainingDeficit <= 0.01 ? fittedReveals : null;
 }
 
 function getUniformFitReveals(cardCount: number, cardHeight: number, availableHeight: number): number[] {
