@@ -4,14 +4,34 @@ Spider is an independent cross-platform desktop Spider Solitaire app built with 
 
 I built Spider for my dad, who wanted a simpler Spider Solitaire experience: clear cards, straightforward controls, local saves, and none of the ads, accounts, online features, or extra clutter that get in the way of just playing.
 
-## Current Scope
+[Download for Windows or macOS](https://github.com/jaysqvl/spider/releases/latest) · [Build from source](#development-setup) · [Explore the game engine](src/game)
+
+![Spider Solitaire gameplay with a green table, clear cards, difficulty selection, and score](docs/screenshots/gameplay.jpg)
+
+*Gameplay captured from the production frontend's browser preview, cropped to the upper board. The desktop app uses the same React interface inside Tauri, with SQLite storage.*
+
+<details>
+<summary>See appearance and accessibility settings</summary>
+
+![Spider settings with themes, card styles, game scaling, automatic fitting, and reduced motion](docs/screenshots/settings.jpg)
+
+</details>
+
+## What you can do
 
 - Classic Spider Solitaire only.
 - Difficulty modes: 1 suit, 2 suits, and 4 suits.
 - Deterministic seeds for reproducible deals.
 - Local-only saved game, settings, and statistics.
+- Undo/redo, hints, adjustable game scale, and reduced motion.
 - Tauri desktop packaging for Windows and macOS.
 - GitHub Actions CI and semver release automation.
+
+## Engineering highlights
+
+- **Testable game rules:** a pure TypeScript engine separates deterministic deals and state transitions from React and desktop APIs.
+- **Local persistence:** a Rust/Tauri boundary stores games and statistics in SQLite, with migrations and recovery for a damaged database.
+- **Desktop delivery:** GitHub Actions builds Windows and macOS packages with signed updater artifacts and separate stable and development channels.
 
 ## Development Setup
 
