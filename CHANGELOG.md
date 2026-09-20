@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.2.1](https://github.com/jaysqvl/spider/compare/v0.2.0...v0.2.1) (2026-09-20)
+
+
+### Bug Fixes
+
+* **release:** resolve draft by release id ([fda1a21](https://github.com/jaysqvl/spider/commit/fda1a210eb7a028ead7f8bd2e5d46eba95a76dbe))
+* **release:** use supported intel macos runner ([6bab4b3](https://github.com/jaysqvl/spider/commit/6bab4b3bf91e718c4a73b2ae5e37951c8e07a7fe))
+
+
+### Documentation
+
+* showcase Spider gameplay and desktop features ([a4750cc](https://github.com/jaysqvl/spider/commit/a4750cc2b15c1bcd22cc96fa5e851d73cc7f21b4))
+
+
+### Build System
+
+* **deps:** bump @vitest/mocker and vitest ([#6](https://github.com/jaysqvl/spider/issues/6)) ([3512fab](https://github.com/jaysqvl/spider/commit/3512fab2ee92f55495ac70a0f48953cd22e14bb6))
+
 ## [0.2.0](https://github.com/jaysqvl/spider/compare/v0.1.6...v0.2.0) (2026-08-13)
 
 
