@@ -27,6 +27,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Audit frontend dependencies
+        run: npm audit --audit-level=low
+
+      - name: Dependency safety regression controls
+        run: node --test scripts/check-dependency-security.mjs
+
       - name: Verify workflow action pins
         run: npm run verify:workflows
 
