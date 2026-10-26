@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, realpath, writeFile, rm } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
@@ -48,7 +48,9 @@ test("deferred manual mock exports retain their legitimate values", async (t) =>
 });
 
 test("redirect mocks reject both traversal separators while allowing in-root files", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "spider-mocker-"));
+  // Resolve macOS /var aliases and Windows short-name temp paths before Vite
+  // applies its canonical allowlist; the legitimate control must be in-root.
+  const directory = await realpath(await mkdtemp(join(tmpdir(), "spider-mocker-")));
   try {
     const root = join(directory, "root");
     await mkdir(root);
@@ -93,7 +95,7 @@ test("Vite project imports never authorize a matching outside-root file",
   { skip: process.platform === "win32", timeout: 20000 }, async () => {
     // GHSA-rq7h-c2jc-7f22 is a non-Windows path-confusion bug. Both files are
     // disposable synthetic canaries, never real host or application data.
-    const directory = await mkdtemp(join(tmpdir(), "spider-vite-"));
+    const directory = await realpath(await mkdtemp(join(tmpdir(), "spider-vite-")));
     let server;
     try {
       const root = join(directory, "project");
