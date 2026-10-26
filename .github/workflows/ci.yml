@@ -31,7 +31,7 @@ jobs:
         run: npm audit --audit-level=low
 
       - name: Dependency safety regression controls
-        run: node --test scripts/check-dependency-security.mjs
+        run: node --test scripts/check-dependency-security.mjs scripts/check-toolchain-security.mjs
 
       - name: Verify workflow action pins
         run: npm run verify:workflows
@@ -52,6 +52,29 @@ jobs:
         run: npm run test:layout
 
       - name: Build frontend
+        run: npm run build
+
+  frontend-platforms:
+    name: Frontend toolchain (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-14]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: lts/*
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Toolchain security regression controls
+        run: node --test scripts/check-toolchain-security.mjs
+      - name: Build frontend with native platform bindings
         run: npm run build
 
   tauri:
